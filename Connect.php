@@ -9,24 +9,24 @@ namespace Query;
 
 class Connect {
 
-	private $_server;
-	private $_user;
-	private $_pass;
-	private $_dbname;
-	private $_charset = "utf8";
+	private $server;
+	private $user;
+	private $pass;
+	private $dbname;
+	private $charset = "utf8mb4";
 
-	static private $_prefix;
-	static private $_DB;
+	static private $prefix;
+	static private $DB;
 
 	function __construct($server, $user, $pass, $dbname) {
-		$this->_server = $server;
-		$this->_user = $user;
-		$this->_pass = $pass;
-		$this->_dbname = $dbname;
+		$this->server = $server;
+		$this->user = $user;
+		$this->pass = $pass;
+		$this->dbname = $dbname;
 	}
 
 	function setCharset(?string $charset) {
-		$this->_charset = $charset;
+		$this->charset = $charset;
 		return $this;
 	}
 
@@ -36,42 +36,42 @@ class Connect {
 	}
 
 	function execute() {
-		self::$_DB = new \mysqli($this->_server, $this->_user, $this->_pass, $this->_dbname);
+		self::$DB = new \mysqli($this->server, $this->user, $this->pass, $this->dbname);
 		if(mysqli_connect_error()) {
 			die('Failed to connect to MySQL: ' . mysqli_connect_error());
 			throw new \Exception('Failed to connect to MySQL: '.mysqli_connect_error(), 1);
 		}
 
-		if(!is_null($this->_charset) && !mysqli_set_charset(self::$_DB, $this->_charset)) {
-			throw new \Exception("Error loading character set ".$this->_charset.": ".mysqli_error(self::$_DB), 2);
+		if(!is_null($this->charset) && !mysqli_set_charset(self::$DB, $this->charset)) {
+			throw new \Exception("Error loading character set ".$this->charset.": ".mysqli_error(self::$DB), 2);
 		}
 		
-		mysqli_character_set_name(self::$_DB);
+		mysqli_character_set_name(self::$DB);
 
 	}
 
-	static function _DB() {
-		return self::$_DB;
+	static function DB() {
+		return self::$DB;
 	}
 
 	static function _query(string $sql) {
-		return self::_DB()->query($sql);
+		return self::DB()->query($sql);
 	}
 
 	static function _prep(string $value) {
-		return self::_DB()->real_escape_string($value);
+		return self::DB()->real_escape_string($value);
 	}
 
-	static function _prefix() {
-		return self::$_prefix;
+	static function prefix() {
+		return self::$prefix;
 	}
 
 	static function _setPrefix(string $prefix) {
-		self::$_prefix = $prefix;
+		self::$prefix = $prefix;
 	}
 
 	static function _selectDB(string $DB, ?string $prefix = NULL) {
-		mysqli_select_db(self::$_DB, $DB);
+		mysqli_select_db(self::$DB, $DB);
 		if(!is_null($prefix)) self::setPrefix($prefix);
 	}
 	
@@ -79,7 +79,7 @@ class Connect {
 
 		$c = 0;
 		$err = array();
-		$mysqli = self::$_DB;
+		$mysqli = self::$DB;
 
 		if(mysqli_multi_query($mysqli, $sql)) {
 		    do {

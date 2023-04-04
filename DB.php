@@ -10,47 +10,45 @@ class DB {
 	const OPERATORS = [">", ">=", "<", "<>", "!=", "<=", "<=>"]; // Comparison operators
 	const JOIN_TYPES = ["INNER", "LEFT", "RIGHT", "CROSS"]; // Join types
 
-	private $_method;
-	private $_explain;
-	private $_table;
-	private $_columns;
-	private $_where;
-	private $_having;
-	private $_set = array();
-	private $_dupSet;
-	private $_whereAnd = "AND";
-	private $_compare = "=";
-	private $_whereIndex = 0;
-	private $_limit;
-	private $_offset;
-	private $_order;
-	private $_join;
-	private $_distinct;
-	private $_group;
-	private $_noCache;
-	private $_calRows;
-	private $_union;
-	private $_viewName;
-	private $_sql;
+	private $method;
+	private $explain;
+	private $table;
+	private $columns;
+	private $where;
+	private $having;
+	private $set = array();
+	private $dupSet;
+	private $whereAnd = "AND";
+	private $compare = "=";
+	private $whereIndex = 0;
+	private $limit;
+	private $offset;
+	private $order;
+	private $join;
+	private $distinct;
+	private $group;
+	private $noCache;
+	private $calRows;
+	private $union;
+	private $viewName;
+	private $sql;
 
 	static function __callStatic($method, $args) {
-
 		if(strpos($method, "_") === 0 && count($args) > 0) {
-
 			$table = array_pop($args);
 			$inst = static::_table($table);
-			$inst->_method = substr($method, 1);
+			$inst->method = substr($method, 1);
 
-			if($inst->_method === "select" && isset($args[0])) {
+			if($inst->method === "select" && isset($args[0])) {
 				$col = explode(",", $args[0]);
 				call_user_func_array([$inst, "columns"], $col);
 			}
 
-			if($inst->_method === "createView" || $inst->_method === "replaceView") {
-				$inst->_viewName = Connect::_prefix()."{$args[0]}";
+			if($inst->method === "createView" || $inst->method === "replaceView") {
+				$inst->viewName = Connect::_prefix()."{$args[0]}";
 			}
 
-			if($inst->_method === "dropView") $inst->_viewName = Connect::_prefix()."{$table}";
+			if($inst->method === "dropView") $inst->viewName = Connect::_prefix()."{$table}";
 
 		} else {
 			$inst = new static();
@@ -60,24 +58,21 @@ class DB {
 	}
 
 	function __call($method, $args) {
-
 		$camelCaseArr = preg_split('#([A-Z][^A-Z]*)#', $method, null, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
 		$shift = array_shift($camelCaseArr);
-
 
 		switch($shift) {
 			case "columns": case "column": case "col": case "pluck":
 				if(is_array($args[0] ?? NULL)) $args = $args[0];
-				$this->_columns = $this->_prepArr($args, false);
-
+				$this->columns = $this->prepArr($args, false);
 			break;
 			case "where":
-				$this->_camelLoop($camelCaseArr, $args, function($col, $val) {
+				$this->camelLoop($camelCaseArr, $args, function($col, $val) {
 					$this->where($col, $val);
 				});
 			break;
 			case "having":
-				$this->_camelLoop($camelCaseArr, $args, function($col, $val) {
+				$this->camelLoop($camelCaseArr, $args, function($col, $val) {
 					$this->having($col, $val);
 				});
 			break;
@@ -91,7 +86,7 @@ class DB {
 			break;
 			case "group":
 				if(is_array($args[0] ?? NULL)) $args = $args[0];
-				$this->_group = " GROUP BY ".implode(",", $this->_prepArr($args));
+				$this->group = " GROUP BY ".implode(",", $this->prepArr($args));
 			break;
 			default;
 				throw new \Exception("Method \"{$method}\" does not exists!", 1);
@@ -119,7 +114,7 @@ class DB {
 	 * @return self
 	 */
 	function compare(string $operator) {
-		$this->_compare = $this->_operator($operator);
+		$this->compare = $this->operator($operator);
 		return $this;
 	}
 
@@ -128,7 +123,7 @@ class DB {
 	 * @return self
 	 */
 	function and() {
-		$this->_whereAnd = "AND";
+		$this->whereAnd = "AND";
 		return $this;
 	}
 
@@ -137,7 +132,7 @@ class DB {
 	 * @return self
 	 */
 	function or() {
-		$this->_whereAnd = "OR";
+		$this->whereAnd = "OR";
 		return $this;
 	}
 	/**
@@ -147,7 +142,7 @@ class DB {
 	 * @return self
 	 */
 	function sprint(string $str, array $arr = array()) {
-		return vsprintf($str, $this->_prepArr($arr, false));
+		return vsprintf($str, $this->prepArr($arr, false));
 	}
 
 
@@ -159,8 +154,8 @@ class DB {
 	 * @return self
 	 */
 	function whereRaw(string $sql, array $arr = array()) {
-		$this->_resetWhere();
-		$this->_where[$this->_whereIndex][$this->_whereAnd][] = $this->sprint($sql, $arr);
+		$this->resetWhere();
+		$this->where[$this->whereIndex][$this->whereAnd][] = $this->sprint($sql, $arr);
 	}
 
 	/**
@@ -172,9 +167,9 @@ class DB {
 	 * @return self
 	 */
 	function where(string $key, string $val, ?string $operator = NULL) {
-		if(!is_null($operator)) $this->_compare = $this->_operator($operator);
-		$this->_where[$this->_whereIndex][$this->_whereAnd][$this->_compare][$key] = $this->prep($val);
-		$this->_compare = "=";
+		if(!is_null($operator)) $this->compare = $this->operator($operator);
+		$this->where[$this->whereIndex][$this->whereAnd][$this->compare][$key] = $this->prep($val);
+		$this->compare = "=";
 		return $this;
 	}
 
@@ -184,10 +179,10 @@ class DB {
 	 * @return self
 	 */
 	function whereBind(callable $call) {
-		if(!is_null($this->_where)) $this->_whereIndex++;
-		$this->_resetWhere();
+		if(!is_null($this->where)) $this->whereIndex++;
+		$this->resetWhere();
 		$call($this);
-		$this->_whereIndex++;
+		$this->whereIndex++;
 		return $this;
 	}
 
@@ -199,9 +194,9 @@ class DB {
 	 * @return self
 	 */
 	function having(string $key, string $val, ?string $operator = NULL) {
-		if(!is_null($operator)) $this->_compare = $this->_operator($operator);
-		$this->_having[$this->_whereIndex][$this->_whereAnd][$this->_compare][$key] = $this->prep($val);
-		$this->_compare = "=";
+		if(!is_null($operator)) $this->compare = $this->operator($operator);
+		$this->having[$this->whereIndex][$this->whereAnd][$this->compare][$key] = $this->prep($val);
+		$this->compare = "=";
 		return $this;
 	}
 
@@ -213,8 +208,8 @@ class DB {
 	 * @return self
 	 */
 	function havingRaw(string $sql, array $arr = array()) {
-		$this->_resetWhere();
-		$this->_having[$this->_whereIndex][$this->_whereAnd][] = $this->sprint($sql, $arr);
+		$this->resetWhere();
+		$this->having[$this->whereIndex][$this->whereAnd][] = $this->sprint($sql, $arr);
 	}
 
 	/**
@@ -224,8 +219,8 @@ class DB {
 	 * @return self
 	 */
 	function limit(int $limit, ?int $offset = NULL) {
-		$this->_limit = (int)$limit;
-		if(!is_null($offset)) $this->_offset = (int)$offset;
+		$this->limit = (int)$limit;
+		if(!is_null($offset)) $this->offset = (int)$offset;
 		return $this;
 	}
 
@@ -235,7 +230,7 @@ class DB {
 	 * @return self
 	 */
 	function offset(int $offset) {
-		$this->_offset = (int)$offset;
+		$this->offset = (int)$offset;
 		return $this;
 	}
 
@@ -248,9 +243,9 @@ class DB {
 	 */
 	function order(string $col, string $sort = "ASC") {
 		$col = $this->prep($col);
-		$sort = $this->_orderSort($sort);
+		$sort = $this->orderSort($sort);
 
-		$this->_order[] = "{$col} {$sort}";
+		$this->order[] = "{$col} {$sort}";
 		return $this;
 	}
 
@@ -262,7 +257,7 @@ class DB {
 	 * @return self
 	 */
 	function orderRaw(string $sql, array $arr = array()) {
-		$this->_order[] = $this->sprint($sql, $arr);
+		$this->order[] = $this->sprint($sql, $arr);
 		return $this;
 	}
 
@@ -278,8 +273,8 @@ class DB {
 	 */
 	function join(string $table, string $sql, array $sprint = array(), string $type = "INNER") {
 		$prefix = Connect::_prefix();
-		$type = $this->_joinTypes(strtoupper($type));
-		$this->_join[$table] = "{$type} JOIN {$prefix}{$table} ON ".$this->sprint($sql, $sprint);
+		$type = $this->joinTypes(strtoupper($type));
+		$this->join[$table] = "{$type} JOIN {$prefix}{$table} ON ".$this->sprint($sql, $sprint);
 		return $this;
 	}
 
@@ -288,7 +283,7 @@ class DB {
 	 * @return self
 	 */
 	function noCache() {
-		$this->_noCache = "SQL_NO_CACHE ";
+		$this->noCache = "SQL_NO_CACHE ";
 		return $this;
 	}
 
@@ -297,7 +292,7 @@ class DB {
 	 * @return self
 	 */
 	function distinct() {
-		$this->_distinct = "DISTINCT ";
+		$this->distinct = "DISTINCT ";
 		return $this;
 	}
 
@@ -306,7 +301,7 @@ class DB {
 	 * @return self
 	 */
 	function explain() {
-		$this->_explain = "EXPLAIN ";
+		$this->explain = "EXPLAIN ";
 		return $this;
 	}
 
@@ -315,7 +310,7 @@ class DB {
 	 * @return self
 	 */
 	function calcRows() {
-		$this->_calRows = "SQL_CALC_FOUND_ROWS ";
+		$this->calRows = "SQL_CALC_FOUND_ROWS ";
 		return $this;
 	}
 
@@ -327,9 +322,9 @@ class DB {
 	 */
 	function set($key, ?string $value = NULL) {
 		if(is_array($key)) {
-			$this->_set = array_merge($this->_set, $this->_prepArr($key, true));
+			$this->set = array_merge($this->set, $this->prepArr($key, true));
 		} else {
-			$this->_set[$key] = $this->enclose($this->prep($value));
+			$this->set[$key] = $this->enclose($this->prep($value));
 		}
 		return $this;
 	}
@@ -346,12 +341,12 @@ class DB {
 
 	// Same as onDupKey
 	function onDuplicateKey($key = NULL, ?string $value = NULL) {
-		$this->_dupSet = array();
+		$this->dupSet = array();
 		if(!is_null($key)) {
 			if(is_array($key)) {
-				$this->_dupSet = $this->_prepArr($key, true);
+				$this->dupSet = $this->prepArr($key, true);
 			} else {
-				$this->_dupSet[$key] = $this->enclose($this->prep($value));
+				$this->dupSet[$key] = $this->enclose($this->prep($value));
 			}
 		}
 		return $this;
@@ -363,7 +358,7 @@ class DB {
 	 * @param string $value Input/insert value (UPROTECTED and Will not enclose)
 	 */
 	function setRaw(string $key, string $value) {
-		$this->_set[$key] = $value;
+		$this->set[$key] = $value;
 		return $this;
 	}
 
@@ -374,9 +369,9 @@ class DB {
 	 * @return self
 	 */
 	function union(DB $inst, bool $allowDuplicate = false) {
-		$this->_order = NULL;
-		$this->_limit = NULL;
-		$this->_union = " UNION ".($allowDuplicate ? "ALL ": "").$inst->select()->sql();
+		$this->order = NULL;
+		$this->limit = NULL;
+		$this->union = " UNION ".($allowDuplicate ? "ALL ": "").$inst->select()->sql();
 		return $this;
 	}
 
@@ -398,100 +393,100 @@ class DB {
 	 * @return string
 	 */
 	function sql() {
-		$this->_build();
-		return $this->_sql;
+		$this->build();
+		return $this->sql;
 	}
 
 	/**
-	 * Build SELECT sql code (The method will be auto called in method _build)
+	 * Build SELECT sql code (The method will be auto called in method build)
 	 * @return self
 	 */
 	protected function select() {
-		$columns = is_null($this->_columns) ? "*" : implode(",", $this->_columns);
-		$join = $this->_buildJoin();
-		$where = $this->_buildWhere("WHERE", $this->_where);
-		$having = $this->_buildWhere("HAVING", $this->_having);
-		$order = (!is_null($this->_order)) ? " ORDER BY ".implode(",", $this->_order) : "";
-		$limit = $this->_buildLimit();
-		$this->_sql = "{$this->_explain}SELECT {$this->_noCache}{$this->_calRows}{$this->_distinct}{$columns} FROM ".$this->getTable()."{$join}{$where}{$this->_group}{$having}{$order}{$limit}{$this->_union}";
+		$columns = is_null($this->columns) ? "*" : implode(",", $this->columns);
+		$join = $this->buildJoin();
+		$where = $this->buildWhere("WHERE", $this->where);
+		$having = $this->buildWhere("HAVING", $this->having);
+		$order = (!is_null($this->order)) ? " ORDER BY ".implode(",", $this->order) : "";
+		$limit = $this->buildLimit();
+		$this->sql = "{$this->explain}SELECT {$this->noCache}{$this->calRows}{$this->distinct}{$columns} FROM ".$this->getTable()."{$join}{$where}{$this->group}{$having}{$order}{$limit}{$this->union}";
 
 		return $this;
 	}
 
 	/**
-	 * Build INSERT sql code (The method will be auto called in method _build)
+	 * Build INSERT sql code (The method will be auto called in method build)
 	 * @return self
 	 */
 	protected function insert() {
-		$this->_sql = "{$this->_explain}INSERT INTO ".$this->getTable()." ".$this->_buildInsertSet().$this->_buildDuplicate();
+		$this->sql = "{$this->explain}INSERT INTO ".$this->getTable()." ".$this->buildInsertSet().$this->buildDuplicate();
 		return $this;
 	}
 
 	/**
-	 * Build UPDATE sql code (The method will be auto called in method _build)
+	 * Build UPDATE sql code (The method will be auto called in method build)
 	 * @return self
 	 */
 	protected function update() {
-		$join = $this->_buildJoin();
-		$where = $this->_buildWhere("WHERE", $this->_where);
-		$limit = $this->_buildLimit();
+		$join = $this->buildJoin();
+		$where = $this->buildWhere("WHERE", $this->where);
+		$limit = $this->buildLimit();
 
-		$this->_sql = "{$this->_explain}UPDATE ".$this->getTable()."{$join} SET ".$this->_buildUpdateSet()."{$where}{$limit}";
+		$this->sql = "{$this->explain}UPDATE ".$this->getTable()."{$join} SET ".$this->buildUpdateSet()."{$where}{$limit}";
 		return $this;
 	}
 
 	/**
-	 * Build DELETE sql code (The method will be auto called in method _build)
+	 * Build DELETE sql code (The method will be auto called in method build)
 	 * @return self
 	 */
 	protected function delete() {
-		$tbToCol = $this->_buildTableToCol();
-		$join = $this->_buildJoin();
-		$where = $this->_buildWhere("WHERE", $this->_where);
-		$limit = $this->_buildLimit();
+		$tbToCol = $this->buildTableToCol();
+		$join = $this->buildJoin();
+		$where = $this->buildWhere("WHERE", $this->where);
+		$limit = $this->buildLimit();
 
-		$this->_sql = "{$this->_explain}DELETE{$tbToCol} FROM ".$this->getTable()."{$join}{$where}{$limit}";
+		$this->sql = "{$this->explain}DELETE{$tbToCol} FROM ".$this->getTable()."{$join}{$where}{$limit}";
 		return $this;
 	}
 
 	/**
-	 * Build CREATE VIEW sql code (The method will be auto called in method _build)
+	 * Build CREATE VIEW sql code (The method will be auto called in method build)
 	 * @return self
 	 */
 	protected function createView() {
 		$this->select();
-		$this->_sql = "CREATE VIEW ".$this->_viewName." AS {$this->_sql}";
+		$this->sql = "CREATE VIEW ".$this->viewName." AS {$this->sql}";
 		return $this;
 	}
 
 	/**
-	 * Build CREATE OR REPLACE VIEW sql code (The method will be auto called in method _build)
+	 * Build CREATE OR REPLACE VIEW sql code (The method will be auto called in method build)
 	 * @return self
 	 */
 	protected function replaceView() {
 		$this->select();
-		$this->_sql = "CREATE OR REPLACE VIEW ".$this->_viewName." AS {$this->_sql}";
+		$this->sql = "CREATE OR REPLACE VIEW ".$this->viewName." AS {$this->sql}";
 		return $this;
 	}
 
 	/**
-	 * Build DROP VIEW sql code (The method will be auto called in method _build)
+	 * Build DROP VIEW sql code (The method will be auto called in method build)
 	 * @return self
 	 */
 	protected function dropView() {
-		$this->_sql = "DROP VIEW ".$this->_viewName;
+		$this->sql = "DROP VIEW ".$this->viewName;
 		return $this;
 	}
 
 	/**
 	 * Used to call methoed that builds SQL queryies
 	 */
-	private function _build() {
-		if(method_exists($this, $this->_method)) {
-			return $this->{$this->_method}();
+	private function build() {
+		if(method_exists($this, $this->method)) {
+			return $this->{$this->method}();
 		} else {
-			if(is_null($this->_sql)) {
-				throw new \Exception("Method \"{$this->_method}\" does not exists! You need to create a method that with same name as static, that will build the query you are after. Take a look att method @method->select.", 1);
+			if(is_null($this->sql)) {
+				throw new \Exception("Method \"{$this->method}\" does not exists! You need to create a method that with same name as static, that will build the query you are after. Take a look att method @method->select.", 1);
 			}
 			
 		}
@@ -502,8 +497,8 @@ class DB {
 	 * @return object (Mysql result)
 	 */
 	function execute() {
-		$this->_build();
-		if($result = Connect::_query($this->_sql)) {
+		$this->build();
+		if($result = Connect::_query($this->sql)) {
 			return $result;	
 
 		} else {
@@ -578,22 +573,22 @@ class DB {
 	 * Start Transaction 
 	 * @return Transaction instance. You can use instance to call: inst->rollback() OR inst->commit()
 	 */
-	static function _beginTransaction() {
-		Connect::_DB()->begin_transaction();
+	static function beginTransaction() {
+		Connect::_DB()->begintransaction();
 		return Connect::_DB();
 	}
 
 	
-	// Same as @_beginTransaction
-	static function _transaction() {
-		return self::_beginTransaction();
+	// Same as @beginTransaction
+	static function transaction() {
+		return self::beginTransaction();
 	}
 
 	/**
 	 * Commit transaction
 	 * @return self
 	 */
-	static function _commit() {
+	static function commit() {
 		Connect::_DB()->commit();
 		return self;
 	}
@@ -602,7 +597,7 @@ class DB {
 	 * Rollback transaction
 	 * @return self
 	 */
-	static function _rollback() {
+	static function rollback() {
 		Connect::_DB()->rollback();
 		return self;
 	}
@@ -620,18 +615,18 @@ class DB {
 	 * @return array
 	 */
 	function getColumns() {
-		return $this->_columns;
+		return $this->columns;
 	}
 	
 	/**
 	 * Will reset Where input
 	 */
-	private function _resetWhere() {
-		$this->_whereAnd = "AND";
-		$this->_compare = "=";
+	private function resetWhere() {
+		$this->whereAnd = "AND";
+		$this->compare = "=";
 	}
 
-	private function _camelLoop(array $camelCaseArr, array $valArr, callable $call) {
+	private function camelLoop(array $camelCaseArr, array $valArr, callable $call) {
 		foreach($camelCaseArr as $k => $col) {
 			$col = lcfirst($col);
 			$value = ($valArr[$k] ?? NULL);
@@ -655,7 +650,7 @@ class DB {
 	 * @param  bool|boolean $trim    Auto trime
 	 * @return array
 	 */
-	private function _prepArr(array $arr, bool $enclose = true, bool $trim = false) {
+	private function prepArr(array $arr, bool $enclose = true, bool $trim = false) {
 		$new = array();
 		foreach($arr as $k => $v) {
 			$key = $this->prep($k);
@@ -666,10 +661,10 @@ class DB {
 		return $new;
 	}
 
-	private function _buildTableToCol() {
-		if(!is_null($this->_join)) {
+	private function buildTableToCol() {
+		if(!is_null($this->join)) {
 			$new = array();
-			$keys = array_keys($this->_join);
+			$keys = array_keys($this->join);
 			array_unshift($keys, $this->getTable());
 			foreach($keys as $val) {
 				$a = explode(" ", $val);
@@ -682,42 +677,38 @@ class DB {
 		return "";
 	}
 
-	private function _buildInsertSet(?array $arr = NULL) {
-		if(is_null($arr)) $arr = $this->_set;
+	private function buildInsertSet(?array $arr = NULL) {
+		if(is_null($arr)) $arr = $this->set;
 		$columns = array_keys($arr);
 		$columns = implode(",", $columns); 
-		$values = implode(",", $this->_set);
+		$values = implode(",", $this->set);
 		return "({$columns}) VALUES ({$values})";
 	}
 
-	private function _buildUpdateSet(?array $arr = NULL) {
-		if(is_null($arr)) $arr = $this->_set;
+	private function buildUpdateSet(?array $arr = NULL) {
+		if(is_null($arr)) $arr = $this->set;
 		$new = array();
 		foreach($arr as $key => $val) $new[] = "{$key} = {$val}";
 		return implode(",", $new);
 	}
 
-	private function _buildDuplicate() {
-		if(!is_null($this->_dupSet)) {
-			$set = (count($this->_dupSet) > 0) ? $this->_dupSet : $this->_set;
-			return " ON DUPLICATE KEY UPDATE ".$this->_buildUpdateSet($set);
+	private function buildDuplicate() {
+		if(!is_null($this->dupSet)) {
+			$set = (count($this->dupSet) > 0) ? $this->dupSet : $this->set;
+			return " ON DUPLICATE KEY UPDATE ".$this->buildUpdateSet($set);
 		}
 		return "";
 	}
 
-	private function _buildWhere(string $prefix, ?array $where) {
+	private function buildWhere(string $prefix, ?array $where) {
 		$out = "";
-
 		if(!is_null($where)) {
-
 			$out = " {$prefix}";
 			foreach($where as $i => $array) {
 				$firstAnd = key($array);
-
 				$andOr = "";
 				$out .= (($i) ? " {$firstAnd}" : "")." (";
 				foreach($array as $key => $arr) {
-
 					foreach($arr as $operator => $a) {
 						if(is_array($a)) {
 							foreach($a as $col => $val) {
@@ -733,18 +724,17 @@ class DB {
 				$out .= ")";
 			}
 		}
-
 		return $out;
 	}
 
-	private function _buildJoin() {
-		return (!is_null($this->_join)) ? " ".implode(" ", $this->_join) : "";
+	private function buildJoin() {
+		return (!is_null($this->join)) ? " ".implode(" ", $this->join) : "";
 	}
 
-	private function _buildLimit() {
-		if(is_null($this->_limit) && !is_null($this->_offset)) $this->_limit = 1;
-		$offset = (!is_null($this->_offset)) ? ",{$this->_offset}" : "";
-		return (!is_null($this->_limit)) ? " LIMIT {$this->_limit}{$offset}" : "";
+	private function buildLimit() {
+		if(is_null($this->limit) && !is_null($this->offset)) $this->limit = 1;
+		$offset = (!is_null($this->offset)) ? ",{$this->offset}" : "";
+		return (!is_null($this->limit)) ? " LIMIT {$this->limit}{$offset}" : "";
 	}
 
 
@@ -756,7 +746,7 @@ class DB {
 	 * @param  string $val
 	 * @return string
 	 */
-	private function _operator(string $val) {
+	private function operator(string $val) {
 		$val = trim($val);
 		if(in_array($val, $this::OPERATORS)) {
 			return $val;
@@ -769,7 +759,7 @@ class DB {
 	 * @param  string $val
 	 * @return string
 	 */
-	private function _orderSort(string $val) {
+	private function orderSort(string $val) {
 		$val = strtoupper($val);
 		if($val === "ASC" || $val === "DESC") {
 			return $val;
@@ -783,7 +773,7 @@ class DB {
 	 * @param  string $val
 	 * @return string
 	 */
-	private function _joinTypes(string $val) {
+	private function joinTypes(string $val) {
 		$val = trim($val);
 		if(in_array($val, $this::JOIN_TYPES)) {
 			return $val;
@@ -796,14 +786,14 @@ class DB {
 	/**
 	 * Profile mysql speed
 	 */
-	static function _startProfile() {
+	static function startProfile() {
 		Connect::_query("set profiling=1");
 	}
 
 	/**
 	 * Close profile and print results
 	 */
-	static function _endProfile($html = true) {
+	static function endProfile($html = true) {
 		$totalDur = 0;
 		$rs = Connect::_query("show profiles");
 
