@@ -14,7 +14,7 @@
 	$mig->auto();
 
 	// Only create table
-	//$mig->alter();
+	//$mig->create();
 
 	// Only alter table
 	//$mig->alter();
@@ -118,9 +118,8 @@ class Create {
 	const INDEXES = ["PRIMARY", "UNIQUE", "INDEX", "FULLTEXT"];
 
 
-	function __construct(string $table, $prefix = false) {
-		if(is_null(self::$_dbName)) self::$_dbName = DB_NAME;
-		$this->_prefix = (!$prefix) ? PREFIX : $prefix;
+	function __construct(string $table, ?string $prefix = NULL) {
+		$this->_prefix = $prefix;
 		$this->_charset = "utf8";
 		$this->_engine = "InnoDB";
 		$this->_rowFormat = "DYNAMIC";
@@ -159,7 +158,6 @@ class Create {
 	function auto() {
 		if($this->tableExists($this->_table)) {
 			$this->alter($this->_table);
-
 		} else {
 			$this->create();
 		}
