@@ -1,15 +1,17 @@
-# WA Queries - MySQL
-WA Queries is a powerful yet **user friendly** and **light weight** library for making **safe** database queries.
+# PHP Fuse - MySQL queries
+PHP Fuse - MySQL queries is a powerful yet **user friendly** and **light weight** library for making **safe** database queries.
 
 ### Select 1:
 ```php
-$select = Query\DB::_select("id,firstname,lastname", "users a")->whereId(1)->where("status", 0, ">")->limit(1);
+use PHPFuse\Query\DB;
+
+$select = DB::select("id,firstname,lastname", "users a")->whereId(1)->where("status", 0, ">")->limit(1);
 $select->join("login b", "b.user_id = a.id");
 $obj = $select->get(); // Get one row result as object
 ```
 ### Select 2:
 ```php
-$select = Query\DB::_select("id,name,content", "pages")->whereStatusParent(1, 0);
+$select = DB::select("id,name,content", "pages")->whereStatusParent(1, 0);
 $array = $select->fetch(); // Get all rows as an array
 ```
 ### Where 1
@@ -58,7 +60,7 @@ $select->orderRaw("id ASC, parent DESC");
 ```
 ### Insert
 ```php 
-$insert = Query\DB::_insert("pages")->set(["id" => 36, "name" => "About us", "slug" => "about-us"])->onDupKey();
+$insert = DB::insert("pages")->set(["id" => 36, "name" => "About us", "slug" => "about-us"])->onDupKey();
 $insert->execute(); // bool
 $insertID = $select->insertID(); // Get AI ID
 ```
@@ -72,7 +74,7 @@ $insert->onDupKey(["name" => "About us"]);
 ```
 ### Update
 ```php 
-$update = Query\DB::_update("pages")->set(["name" => "About us", "slug" => "about-us"])->whereId(34)->limit(1);
+$update = DB::update("pages")->set(["name" => "About us", "slug" => "about-us"])->whereId(34)->limit(1);
 $update->execute();
 ```
 ### Preview SQL code before executing

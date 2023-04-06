@@ -5,7 +5,7 @@
  * Copyright: All right reserved for Creative Army
  */
 
-namespace Query;
+namespace PHPFuse\Query;
 
 class Connect {
 
@@ -30,9 +30,8 @@ class Connect {
 		return $this;
 	}
 
-	function setPrefix(string $prefix) {
-		self::_setPrefix($prefix);
-		return $this;
+	static function setPrefix(string $prefix) {
+		self::$prefix = $prefix;
 	}
 
 	function execute() {
@@ -54,11 +53,11 @@ class Connect {
 		return self::$DB;
 	}
 
-	static function _query(string $sql) {
+	static function query(string $sql) {
 		return self::DB()->query($sql);
 	}
 
-	static function _prep(string $value) {
+	static function prep(string $value) {
 		return self::DB()->real_escape_string($value);
 	}
 
@@ -66,16 +65,14 @@ class Connect {
 		return self::$prefix;
 	}
 
-	static function _setPrefix(string $prefix) {
-		self::$prefix = $prefix;
-	}
+	
 
-	static function _selectDB(string $DB, ?string $prefix = NULL) {
+	static function selectDB(string $DB, ?string $prefix = NULL) {
 		mysqli_select_db(self::$DB, $DB);
 		if(!is_null($prefix)) self::setPrefix($prefix);
 	}
 	
-	static function _multiQuery(string $sql, &$mysqli = NULL) {
+	static function multiQuery(string $sql, &$mysqli = NULL) {
 
 		$c = 0;
 		$err = array();

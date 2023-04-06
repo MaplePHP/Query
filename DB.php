@@ -2,7 +2,7 @@
 /**
  * Wazabii DB - For main queries
  */
-namespace Query;
+namespace PHPFuse\Query;
 
 class DB {
 
@@ -34,10 +34,10 @@ class DB {
 	private $sql;
 
 	static function __callStatic($method, $args) {
-		if(strpos($method, "_") === 0 && count($args) > 0) {
+		if(count($args) > 0) {
 			$table = array_pop($args);
-			$inst = static::_table($table);
-			$inst->method = substr($method, 1);
+			$inst = static::table($table);
+			$inst->method = $method;
 
 			if($inst->method === "select" && isset($args[0])) {
 				$col = explode(",", $args[0]);
@@ -45,10 +45,10 @@ class DB {
 			}
 
 			if($inst->method === "createView" || $inst->method === "replaceView") {
-				$inst->viewName = Connect::_prefix()."{$args[0]}";
+				$inst->viewName = Connect::prefix()."{$args[0]}";
 			}
 
-			if($inst->method === "dropView") $inst->viewName = Connect::_prefix()."{$table}";
+			if($inst->method === "dropView") $inst->viewName = Connect::prefix()."{$table}";
 
 		} else {
 			$inst = new static();
@@ -101,7 +101,7 @@ class DB {
 	 * @param  string $table Mysql table name
 	 * @return self new intance
 	 */
-	static function _table(string $table) {
+	static function table(string $table) {
 		$inst = new static();
 		$inst->_table = $inst->prep($table);
 		return $inst;
@@ -272,7 +272,7 @@ class DB {
 	 * @return self
 	 */
 	function join(string $table, string $sql, array $sprint = array(), string $type = "INNER") {
-		$prefix = Connect::_prefix();
+		$prefix = Connect::prefix();
 		$type = $this->joinTypes(strtoupper($type));
 		$this->join[$table] = "{$type} JOIN {$prefix}{$table} ON ".$this->sprint($sql, $sprint);
 		return $this;
@@ -498,11 +498,11 @@ class DB {
 	 */
 	function execute() {
 		$this->build();
-		if($result = Connect::_query($this->sql)) {
+		if($result = Connect::query($this->sql)) {
 			return $result;	
 
 		} else {
-			throw new \Exception(Connect::_DB()->error, 1);
+			throw new \Exception(Connect::DB()->error, 1);
 		}
 		return false;
 	}
@@ -558,7 +558,7 @@ class DB {
 	 * @return query\connect
 	 */
 	function db() {
-		return Connect::_DB();
+		return Connect::DB();
 	}
 
 	/**
@@ -566,7 +566,7 @@ class DB {
 	 * @return int
 	 */
 	function insertID() {
-		return Connect::_DB()->insert_id;
+		return Connect::DB()->insert_id;
 	}
 
 	/**
@@ -574,8 +574,8 @@ class DB {
 	 * @return Transaction instance. You can use instance to call: inst->rollback() OR inst->commit()
 	 */
 	static function beginTransaction() {
-		Connect::_DB()->begintransaction();
-		return Connect::_DB();
+		Connect::DB()->begintransaction();
+		return Connect::DB();
 	}
 
 	
@@ -589,7 +589,7 @@ class DB {
 	 * @return self
 	 */
 	static function commit() {
-		Connect::_DB()->commit();
+		Connect::DB()->commit();
 		return self;
 	}
 
@@ -598,7 +598,7 @@ class DB {
 	 * @return self
 	 */
 	static function rollback() {
-		Connect::_DB()->rollback();
+		Connect::DB()->rollback();
 		return self;
 	}
 
@@ -607,7 +607,7 @@ class DB {
 	 * @return string
 	 */
 	function getTable() {
-		return Connect::_prefix().$this->_table;
+		return Connect::prefix().$this->_table;
 	}
 
 	/**
@@ -640,7 +640,7 @@ class DB {
 	 * @return string
 	 */
 	function prep(string $val) {
-		return Connect::_prep($val);
+		return Connect::prep($val);
 	}
 
 	/**
@@ -787,7 +787,7 @@ class DB {
 	 * Profile mysql speed
 	 */
 	static function startProfile() {
-		Connect::_query("set profiling=1");
+		Connect::query("set profiling=1");
 	}
 
 	/**
@@ -795,7 +795,7 @@ class DB {
 	 */
 	static function endProfile($html = true) {
 		$totalDur = 0;
-		$rs = Connect::_query("show profiles");
+		$rs = Connect::query("show profiles");
 
 		$output = "";
 		if($html) $output .= "<p style=\"color: red;\">";

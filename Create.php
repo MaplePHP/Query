@@ -65,7 +65,7 @@
 */
 
 
-namespace Query;
+namespace PHPFuse\Query;
 
 class Create {
 
@@ -210,12 +210,12 @@ class Create {
 		foreach($arr as $k => $tb) {
 			$tb = ($k !== 0 ? $this->_prefix : NULL).$tb;
 			if($this->tableExists($tb)) {
-				$currentTB = Connect::_prep($tb);
+				$currentTB = Connect::prep($tb);
 				break;
 			}
 		}
 
-		$newTB = Connect::_prep($this->_prefix.end($arr));
+		$newTB = Connect::prep($this->_prefix.end($arr));
 		
 		if($currentTB) {
 			$this->_table = $currentTB;
@@ -319,7 +319,7 @@ class Create {
 	 */
 	function column(string $col, array $arr) {
 
-		$col = Connect::_prep($col);
+		$col = Connect::prep($col);
 
 		$this->_args = array_merge($this::ARGS, $arr);
 
@@ -329,7 +329,7 @@ class Create {
 			if(!$this->columnExists($this->_table, $col)) {
 				foreach($hasRename as $k) {
 					if($this->columnExists($this->_table, $k)) {
-						$col = Connect::_prep($k);
+						$col = Connect::prep($k);
 						break;
 					}
 				}
@@ -462,13 +462,13 @@ class Create {
 	 */
 	function execute() {
 		$sql = $this->build();
-		$error = Connect::_multiQuery($sql, $mysqli);
+		$error = Connect::multiQuery($sql, $mysqli);
 		return $error;
 	}
 
 	function _mysqlCleanArr(array $arr) {
 		$new = array();
-		foreach($arr as $a) $new[] = Connect::_prep($a);
+		foreach($arr as $a) $new[] = Connect::prep($a);
 		return $new;
 	}
 
@@ -478,8 +478,8 @@ class Create {
 	 * @return int|effected rows
 	 */
 	private function _tbHasKey(string $key) {
-		$key = Connect::_prep($key);
-		$result = Connect::_query("SHOW INDEXES FROM {$this->_table} WHERE Key_name = '{$key}'");
+		$key = Connect::prep($key);
+		$result = Connect::query("SHOW INDEXES FROM {$this->_table} WHERE Key_name = '{$key}'");
 		if($result && $result->num_rows > 0) {
 			return $result->num_rows;
 		}
@@ -556,7 +556,7 @@ class Create {
 	function collation() {
 		if($this->_args['collate']) {
 			if($this->_args['collate'] === true) $this->_args['collate'] = $this::COLLATION;
-			return "CHARACTER SET ".Connect::_prep($this->_charset)." COLLATE ".Connect::_prep($this->_args['collate'])."";
+			return "CHARACTER SET ".Connect::prep($this->_charset)." COLLATE ".Connect::prep($this->_args['collate'])."";
 		}
 		return NULL;
 	}
@@ -574,7 +574,7 @@ class Create {
 	 * @return string
 	 */
 	function default() {
-		return (!is_null($this->_args['default']) && $this->_args['default'] !== false) ? "DEFAULT '".Connect::_prep($this->_args['default'])."'" : NULL;
+		return (!is_null($this->_args['default']) && $this->_args['default'] !== false) ? "DEFAULT '".Connect::prep($this->_args['default'])."'" : NULL;
 	}
 
 	/**
@@ -587,7 +587,7 @@ class Create {
 			if(!in_array($this->_args['attr'], $this::ATTRIBUTES)) {
 				throw new \Exception("The attribute \"{$this->_args['attr']}\" does not exist", 1);
 			}
-			return Connect::_prep($this->_args['attr']);
+			return Connect::prep($this->_args['attr']);
 		}
 
 		return NULL;
@@ -604,7 +604,7 @@ class Create {
 				if(!in_array($this->_args['index'], $this::INDEXES)) {
 					throw new \Exception("The attribute \"{$this->_args['index']}\" does not exist", 1);
 				}
-				return Connect::_prep($this->_args['index']);
+				return Connect::prep($this->_args['index']);
 			}
 		}
 		return NULL;
@@ -687,8 +687,8 @@ class Create {
 			$sqlKeyArr = array();
 			foreach($this->_keys as $col => $key) {
 
-				$col = Connect::_prep($col);
-				$key = Connect::_prep($key);
+				$col = Connect::prep($col);
+				$key = Connect::prep($key);
 
 				if(empty($this->_colData[$col]) || !(bool)$this->_colData[$col]->Key) switch($key) {
 					case 'INDEX':
@@ -750,10 +750,10 @@ class Create {
 	}
 
 	function fkExists(string $table, string $col) {
-		$table = Connect::_prep($table);
-		$col = Connect::_prep($col);
+		$table = Connect::prep($table);
+		$col = Connect::prep($col);
 
-		$result = Connect::_query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '".self::$_dbName."' AND TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
+		$result = Connect::query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '".self::$_dbName."' AND TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
 
 		$arr = array();
 		if($result && $result->num_rows > 0) while($row = $result->fetch_object()) {
@@ -766,8 +766,8 @@ class Create {
 
 	function tableExists(string $table = NULL) {
 		if(is_null($table)) $table = $this->_table;
-		$table = Connect::_prep($table);
- 		$result = Connect::_query("SHOW TABLES LIKE '{$table}'");
+		$table = Connect::prep($table);
+ 		$result = Connect::query("SHOW TABLES LIKE '{$table}'");
  		if($result && $result->num_rows > 0) {
  			return $result;
  		}
@@ -775,9 +775,9 @@ class Create {
 	}
 
 	function columnExists(string $table, string $col) {
-		$table = Connect::_prep($table);
-		$col = Connect::_prep($col);
- 		$result = Connect::_query("SHOW COLUMNS FROM {$table} LIKE '{$col}'");
+		$table = Connect::prep($table);
+		$col = Connect::prep($col);
+ 		$result = Connect::query("SHOW COLUMNS FROM {$table} LIKE '{$col}'");
  		if($result && $result->num_rows > 0) {
  			return $result;
  		}

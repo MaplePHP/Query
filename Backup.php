@@ -1,6 +1,6 @@
 <?php
 
-namespace Query;
+namespace PHPFuse\Query;
 
 class Backup {
 
@@ -90,7 +90,7 @@ class Backup {
     	$data = "";
     	$rowArr = array();
 
-    	$result = connect::_query("SHOW CREATE TABLE ".$this->_prefix.$this->_table);
+    	$result = Connect::query("SHOW CREATE TABLE ".$this->_prefix.$this->_table);
     	$tbRow = $result->fetch_row();
 
 
@@ -99,7 +99,7 @@ class Backup {
 	    	$data .= "\n\nDROP TABLE IF EXISTS `{$this->_prefix}{$this->_table}`;";
 	    	$data .= "\n\n" . $tbRow[1] . ";\n\n";
 
-	    	$select = DB::_select("*", $this->_table);
+	    	$select = DB::select("*", $this->_table);
 	    	$result = $select->execute();
 	    	if($result && $result->num_rows > 0) {
 

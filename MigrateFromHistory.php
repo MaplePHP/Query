@@ -3,7 +3,7 @@
 namespace Query;
 
 
-class MigrateFromHistory {
+class PHPFuse\MigrateFromHistory {
 
 
     private $_prefix;
