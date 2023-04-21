@@ -574,7 +574,7 @@ class DB {
 	 * @return Transaction instance. You can use instance to call: inst->rollback() OR inst->commit()
 	 */
 	static function beginTransaction() {
-		Connect::DB()->begintransaction();
+		Connect::DB()->begin_transaction();
 		return Connect::DB();
 	}
 
@@ -653,6 +653,7 @@ class DB {
 	private function prepArr(array $arr, bool $enclose = true, bool $trim = false) {
 		$new = array();
 		foreach($arr as $k => $v) {
+			$v = (string)$v;
 			$key = $this->prep($k);
 			if($trim) $v = trim($v);
 			$value = $this->enclose($this->prep($v), $enclose);
