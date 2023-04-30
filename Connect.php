@@ -16,6 +16,7 @@ class Connect {
 	private $charset = "utf8mb4";
 
 	static private $prefix;
+	static private $self;
 	static private $DB;
 
 	function __construct($server, $user, $pass, $dbname) {
@@ -23,6 +24,7 @@ class Connect {
 		$this->user = $user;
 		$this->pass = $pass;
 		$this->dbname = $dbname;
+		self::$self = $this;
 	}
 
 	function setCharset(?string $charset) {
@@ -32,6 +34,10 @@ class Connect {
 
 	static function setPrefix(string $prefix) {
 		self::$prefix = $prefix;
+	}
+
+	function getDBName() {
+		return $this->dbname;
 	}
 
 	function execute() {
@@ -47,6 +53,10 @@ class Connect {
 		
 		mysqli_character_set_name(self::$DB);
 
+	}
+
+	static function inst() {
+		return self::$self;
 	}
 
 	static function DB() {
@@ -103,5 +113,3 @@ class Connect {
 	}
 
 }
-
-?>

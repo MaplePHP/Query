@@ -58,8 +58,14 @@ class DB {
 	}
 
 	function __call($method, $args) {
-		$camelCaseArr = preg_split('#([A-Z][^A-Z]*)#', $method, null, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-		$shift = array_shift($camelCaseArr);
+
+		$camelCaseArr = array();
+		if(!is_null($method)) {
+			$camelCaseArr = preg_split('#([A-Z][^A-Z]*)#', $method, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+			$shift = array_shift($camelCaseArr);
+		}
+
+		
 
 		switch($shift) {
 			case "columns": case "column": case "col": case "pluck":
@@ -103,7 +109,7 @@ class DB {
 	 */
 	static function table(string $table) {
 		$inst = new static();
-		$inst->_table = $inst->prep($table);
+		$inst->table = $inst->prep($table);
 		return $inst;
 	}
 	
@@ -320,12 +326,24 @@ class DB {
 	 * @param  string|null   $value  If key is string then value will pair with key "Lorem ipsum"
 	 * @return self
 	 */
-	function set($key, ?string $value = NULL) {
+	function set(string|array $key, ?string $value = NULL): self 
+	{
 		if(is_array($key)) {
 			$this->set = array_merge($this->set, $this->prepArr($key, true));
 		} else {
 			$this->set[$key] = $this->enclose($this->prep($value));
 		}
+		return $this;
+	}
+
+	/**
+	 * UPROTECTED: Create INSERT or UPDATE set Mysql input to insert
+	 * @param string $key   Mysql column
+	 * @param string $value Input/insert value (UPROTECTED and Will not enclose)
+	 */
+	function setRaw(string $key, string $value): self 
+	{
+		$this->set[$key] = $value;
 		return $this;
 	}
 
@@ -349,16 +367,6 @@ class DB {
 				$this->dupSet[$key] = $this->enclose($this->prep($value));
 			}
 		}
-		return $this;
-	}
-
-	/**
-	 * UPROTECTED: Create INSERT or UPDATE set Mysql input to insert
-	 * @param string $key   Mysql column
-	 * @param string $value Input/insert value (UPROTECTED and Will not enclose)
-	 */
-	function setRaw(string $key, string $value) {
-		$this->set[$key] = $value;
 		return $this;
 	}
 
@@ -607,7 +615,7 @@ class DB {
 	 * @return string
 	 */
 	function getTable() {
-		return Connect::prefix().$this->_table;
+		return Connect::prefix().$this->table;
 	}
 
 	/**
@@ -817,5 +825,3 @@ class DB {
 	}
 
 }
-
-?>

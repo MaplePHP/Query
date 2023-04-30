@@ -77,6 +77,20 @@ $insert->onDupKey(["name" => "About us"]);
 $update = DB::update("pages")->set(["name" => "About us", "slug" => "about-us"])->whereId(34)->limit(1);
 $update->execute();
 ```
+### Update
+```php 
+$delete = DB::delete("pages")->whereId(34)->limit(1);
+$delete->execute();
+```
+### Set
+```php 
+$select->set("firstname", "John")->set("lastname", "Doe");
+// Update/insert first- and last name
+$select->set(["firstname" => "John", "lastname" => "Doe"])->set("lastname", "Doe"); 
+// Same as above: Update/insert first- and last name
+$select->setRaw("msg_id", "UUID()");
+// UNPORTECTED and and will not be ENCLOSED!
+```
 ### Preview SQL code before executing
 ```php 
 echo $select->sql();

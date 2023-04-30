@@ -69,8 +69,6 @@ namespace PHPFuse\Query;
 
 class Create {
 
-	static private $_dbName;
-
 	private $_sql;
 	private $_add;
 	private $_addArr = array();
@@ -81,6 +79,10 @@ class Create {
 	private $_tableText;
 	private $_col;
 	private $_prev;
+	private $_charset;
+	private $_engine;
+	private $_rowFormat;
+
 
 	private $_keys = array();
 	private $_ai = array();
@@ -125,22 +127,6 @@ class Create {
 		$this->_rowFormat = "DYNAMIC";
 		$this->_tableText = $table;
 		$this->_table = "{$this->_prefix}{$table}";
-	}
-
-	/**
-	 * Change setted DB name
-	 * @return string
-	 */
-	function setDBName(string $name) {
-		self::$_dbName = $name;
-	}
-
-	/**
-	 * Get setted DB name
-	 * @return string
-	 */
-	static function _getDBName() {
-		return self::$_dbName;
 	}
 
 	/**
@@ -752,14 +738,13 @@ class Create {
 	function fkExists(string $table, string $col) {
 		$table = Connect::prep($table);
 		$col = Connect::prep($col);
-
-		$result = Connect::query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '".self::$_dbName."' AND TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
+		$dbName = Connect::inst()->getDBName();
+		$result = Connect::query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '{$dbName}' AND TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
 
 		$arr = array();
 		if($result && $result->num_rows > 0) while($row = $result->fetch_object()) {
 			$arr[$row->CONSTRAINT_NAME] = $row;
 		}
-
  		return $arr;
 
 	}
@@ -785,5 +770,3 @@ class Create {
 	}
 
 }
-
-?>
