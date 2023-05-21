@@ -98,6 +98,7 @@ class Create {
 
 	private $_build;
 	private $_columns;
+	private $_tableExists;
 
 
 	CONST ARGS = [
@@ -750,21 +751,26 @@ class Create {
 	}
 
 	function tableExists(string $table = NULL) {
-		if(is_null($table)) $table = $this->_table;
-		$table = Connect::prep($table);
- 		$result = Connect::query("SHOW TABLES LIKE '{$table}'");
- 		if($result && $result->num_rows > 0) {
- 			return $result;
+		if(!is_null($this->_tableExists)) {
+			$this->_tableExists = false;
+			if(is_null($table)) $table = $this->_table;
+			$table = Connect::prep($table);
+	 		$result = Connect::query("SHOW TABLES LIKE '{$table}'");
+	 		if($result && $result->num_rows > 0) {
+	 			$this->_tableExists = $result;
+	 		}
  		}
- 		return false;
+ 		return $this->_tableExists;
 	}
 
 	function columnExists(string $table, string $col) {
-		$table = Connect::prep($table);
-		$col = Connect::prep($col);
- 		$result = Connect::query("SHOW COLUMNS FROM {$table} LIKE '{$col}'");
- 		if($result && $result->num_rows > 0) {
- 			return $result;
+		if($this->tableExists($table)) {
+			$table = Connect::prep($table);
+			$col = Connect::prep($col);
+	 		$result = Connect::query("SHOW COLUMNS FROM {$table} LIKE '{$col}'");
+	 		if($result && $result->num_rows > 0) {
+	 			return $result;
+	 		}
  		}
  		return false;
 	}
