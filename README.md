@@ -41,6 +41,15 @@ $select->whereRaw("status = 1 AND visible = 1");
 $select->whereRaw("status = %d AND visible = %d", [1, 1]);  
 // PROTECTED: status = 1 AND visible = 1
 ```
+### Having
+Having command works the same as where command above with exception that you rename "where" in method to "having" and @havingBind do not exist. 
+```php 
+$select->having("id", 1); // id = '1'
+$select->having("parent", 0, ">");  // parent > '1'
+$select->havingRaw("status = 1 AND visible = 1");  
+$select->havingRaw("status = %d AND visible = %d", [1, 1]);  
+```
+
 ### Limit
 ```php 
 $select->limit(1); // LIMIT 1
@@ -57,6 +66,15 @@ $select->order("id", "ASC")->order("parent", "DESC");
 // ORDER BY id ASC, parent DESC
 $select->orderRaw("id ASC, parent DESC"); 
 // ORDER BY id ASC, parent DESC
+```
+### Limit
+```php 
+$select->join("tableName", "b.user_id = a.id"); // Default INNER join
+$select->join("tableName", "b.user_id = '%d'", [872], "LEFT"); // PROTECTED INPUT
+$select->joinInner("tableName", "b.user_id = a.id");
+$select->joinLeft("tableName", "b.user_id = a.id");
+$select->joinRight("tableName", "b.user_id = a.id");
+$select->joinCross("tableName", "b.user_id = a.id");
 ```
 ### Insert
 ```php 
@@ -77,7 +95,7 @@ $insert->onDupKey(["name" => "About us"]);
 $update = DB::update("pages")->set(["name" => "About us", "slug" => "about-us"])->whereId(34)->limit(1);
 $update->execute();
 ```
-### Update
+### Delete
 ```php 
 $delete = DB::delete("pages")->whereId(34)->limit(1);
 $delete->execute();

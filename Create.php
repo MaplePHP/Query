@@ -67,6 +67,8 @@
 
 namespace PHPFuse\Query;
 
+use PHPFuse\Query\Exceptions\QueryCreateException;
+
 class Create {
 
 	private $_sql;
@@ -82,6 +84,8 @@ class Create {
 	private $_charset;
 	private $_engine;
 	private $_rowFormat;
+	private $_tbKeys;
+	private $_tbKeysType;
 
 
 	private $_keys = array();
@@ -91,6 +95,7 @@ class Create {
 	private $_colData = array();
 	private $_rename = array();
 	private $_hasRename = array();
+	
 
 	private $_renameTable = array();
 	private $_primaryKeys = array();
@@ -118,7 +123,9 @@ class Create {
 
 	const COLLATION = "utf8_general_ci";
 	const ATTRIBUTES = ["BINARY", "UNSIGNED", "UNSIGNED ZEROFILL", "on update CURRENT_TIMESTAMP"];
-	const INDEXES = ["PRIMARY", "UNIQUE", "INDEX", "FULLTEXT"];
+	const INDEXES = ["PRIMARY", "UNIQUE", "INDEX", "FULLTEXT", "SPATIAL"];
+	const FULLTEXT_COLUMNS = ["CHAR", "VARCHAR", "TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT", "JSON"];
+	const SPATIAL_COLUMNS = ["POINT", "LINESTRING", "POLYGON", "GEOMETRY", "MULTIPOINT", "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION"];
 
 
 	function __construct(string $table, ?string $prefix = NULL) {
@@ -190,7 +197,7 @@ class Create {
 	 * @return slef
 	 */
 	function rename(array $arr) {
-		if(!is_null($this->_sql)) throw new \Exception("The rename method has to be the FIRST method to be called!", 1);
+		if(!is_null($this->_sql)) throw new QueryCreateException("The rename method has to be the FIRST method to be called!", 1);
 		array_unshift($arr, $this->_table);
 
 		$currentTB = false;
@@ -276,9 +283,28 @@ class Create {
 		return $arr;
 	}
 
-	function primary(array $colArr) {
+	/**
+	 * Add primary keys
+	 * @param  array  $colArr [description]
+	 * @return [type]         [description]
+	 */
+	public function primary(array $colArr): self 
+	{
+		$colArr = $this->clean($colArr);
 		$this->_primaryKeys = array_merge($this->_primaryKeys, $colArr);
 		return $this;
+	}
+
+
+	public function clean($value): string|array 
+	{
+		if(is_array($value)) {
+			return array_map([$this, 'clean'], $value);
+		} else {
+			$value = preg_replace("/[^a-zA-Z0-9_]/", "", $value);
+			$value = trim($value);
+		}
+		return $value;
 	}
 
 	/**
@@ -299,7 +325,7 @@ class Create {
 	}
 
 	/**
-	 * Create column with all the right arguments, indexs, keys and so on
+	 * Prepare column with all the right arguments, indexs, keys and so on
 	 * @param  string $col Column name
 	 * @param  array  $arr Column arguments
 	 * @return self
@@ -380,11 +406,13 @@ class Create {
 	 */
 	private function _setPrimary() {
 		if(count($this->_primaryKeys) > 0) {
-			if($this->_tbHasKey("PRIMARY")) {
-				$this->_add[] = "DROP PRIMARY KEY";
-			}
 
+			if($keys = $this->_tbKeys()) $this->_add[] = "DROP PRIMARY KEY";
+
+
+			$this->_primaryKeys = array_unique($this->_primaryKeys);
 			$imp = implode(",", $this->_mysqlCleanArr($this->_primaryKeys));
+
 			if($this->_type === "create") {
 				$this->_add[] = "PRIMARY KEY({$imp})";
 			} else {
@@ -399,12 +427,19 @@ class Create {
 	 */
 	function build() {
 
+		
 		if(is_array($this->_add)) {
 			$this->_add = array_filter($this->_add);
 		}
 
 		if(is_null($this->_build)) {
+
+			// Might add to primary
+			$keyStr = $this->_buildKeys();
+
 			$this->_setPrimary();
+
+
 
 			if($this->_type === "drop") {
 				$this->_build = "{$this->_sql};";
@@ -423,7 +458,7 @@ class Create {
 				}
 
 				$this->_build .= "\n\n";
-				if($keyStr = $this->_buildKeys()) $this->_build .= "{$keyStr}\n\n";
+				if($keyStr) $this->_build .= "{$keyStr}\n\n";
 				if($aiStr = $this->_buildAI()) $this->_build .= "{$aiStr}\n\n";
 				if($renameStr = $this->_buildRename()) $this->_build .= "{$renameStr}\n\n";
 				if($fkStr = $this->_buildFK()) $this->_build .= "{$fkStr}\n\n";
@@ -461,17 +496,35 @@ class Create {
 
 	/**
 	 * Index lookup
-	 * @param  string $key Example: PRIMAY
 	 * @return int|effected rows
 	 */
-	private function _tbHasKey(string $key) {
-		$key = Connect::prep($key);
-		$result = Connect::query("SHOW INDEXES FROM {$this->_table} WHERE Key_name = '{$key}'");
-		if($result && $result->num_rows > 0) {
-			return $result->num_rows;
+	private function _tbKeys(): array {
+		if(is_null($this->_tbKeys)) {
+			$this->_tbKeysType = $this->_tbKeys = array();
+			if($this->tableExists($this->_table)) {
+				$result = Connect::query("SHOW INDEXES FROM {$this->_table}");
+				if($result && $result->num_rows > 0) {
+					while ($row = $result->fetch_object()) {
+						$type = ($row->Index_type === "FULLTEXT" || $row->Index_type === "SPATIAL") ? $row->Index_type : "INDEX";
+						$type = ($row->Key_name === "PRIMARY") ? $row->Key_name : (((int)$row->Non_unique === 0) ? "UNIQUE" : $type);
+						$this->_tbKeys[$row->Column_name][] = $row->Key_name;
+						$this->_tbKeysType[$row->Column_name][] = $type;
+
+
+						
+					}
+				}
+			}
 		}
-		return false;
+
+		return $this->_tbKeys;
 	}
+
+	function tbKeysType() {
+		if(is_null($this->_tbKeysType)) $this->_tbKeys();
+		return $this->_tbKeysType;
+	}
+
 
 
 	
@@ -572,7 +625,7 @@ class Create {
 		if(!is_null($this->_args['attr'])) {
 			$this->_args['attr'] = strtoupper($this->_args['attr']);
 			if(!in_array($this->_args['attr'], $this::ATTRIBUTES)) {
-				throw new \Exception("The attribute \"{$this->_args['attr']}\" does not exist", 1);
+				throw new QueryCreateException("The attribute \"{$this->_args['attr']}\" does not exist", 1);
 			}
 			return Connect::prep($this->_args['attr']);
 		}
@@ -588,8 +641,17 @@ class Create {
 		if(!is_null($this->_args['index'])) {
 			if($this->_args['index'] !== 0) {
 				$this->_args['index'] = strtoupper($this->_args['index']);
+				$this->_args['type'] = strtoupper($this->_args['type']);
 				if(!in_array($this->_args['index'], $this::INDEXES)) {
-					throw new \Exception("The attribute \"{$this->_args['index']}\" does not exist", 1);
+					throw new QueryCreateException("The attribute \"{$this->_args['index']}\" does not exist", 1);
+				}
+
+				if($this->_args['index'] === "FULLTEXT" && !in_array($this->_args['type'], static::FULLTEXT_COLUMNS)) {
+					throw new QueryCreateException("You can ony have \"{$this->_args['index']}\" index on column types (".implode(", ", static::FULLTEXT_COLUMNS)."), you have \"{$this->_args['type']}\".", 1);
+				}
+
+				if($this->_args['index'] === "SPATIAL" && !in_array($this->_args['type'], static::SPATIAL_COLUMNS)) {
+					throw new QueryCreateException("You can ony have \"{$this->_args['index']}\" index on column types (".implode(", ", static::FULLTEXT_COLUMNS)."), you have \"{$this->_args['type']}\".", 1);
 				}
 				return Connect::prep($this->_args['index']);
 			}
@@ -665,31 +727,56 @@ class Create {
 		}
 
 		return NULL;
-
 	}
 
-	private function _buildKeys() {
+	/**
+	 * Build key sql output
+	 * @return string
+	 */
+	private function _buildKeys(): string 
+	{
+
 		$sql = "";
+		$tbKeys = $this->_tbKeys();
+		$prepareDrop = $this->tbKeysType();
+
 		if(count($this->_keys) > 0) {
 			$sqlKeyArr = array();
 			foreach($this->_keys as $col => $key) {
-
 				$col = Connect::prep($col);
-				$key = Connect::prep($key);
+				$key = strtoupper(Connect::prep($key));
 
+				// Prepare DROP
+				if(isset($prepareDrop[$col]) && ($index = array_search($key, $prepareDrop[$col])) !== false) {
+					unset($prepareDrop[$col][$index]);
+				}
+
+				// Prepare ADD
 				if(empty($this->_colData[$col]) || !(bool)$this->_colData[$col]->Key) switch($key) {
 					case 'INDEX':
-						$sqlKeyArr[] = "ADD KEY `{$col}` (`{$col}`)";
+						$sqlKeyArr[] = "ADD INDEX `{$col}` (`{$col}`)";
+
 					break;
 					case 'PRIMARY':
-						$sqlKeyArr[] = "ADD {$key} KEY (`{$col}`)";
+						$this->primary([$col]);
 					break;
 					default:
-						$sqlKeyArr[] = "ADD {$key} (`{$col}`)";
+						$sqlKeyArr[] = "ADD {$key} INDEX `{$col}` (`{$col}`)";
 					break;
 				}		
 			}
 
+			// DROP Possible keys
+			if(count($prepareDrop) > 0) {
+				foreach($prepareDrop as $a => $arr) {
+					if(($index = array_search("PRIMARY", $arr)) !== false) unset($arr[$index]);
+					if(count($arr) > 0) foreach ($tbKeys[$a] as $b => $col) {
+						$sqlKeyArr[] = "DROP INDEX `{$col}`";
+					}
+				}
+			}
+
+			// Build alter tabel keys 
 			if(count($sqlKeyArr) > 0) {
 				$sql = "ALTER TABLE `{$this->_table}`\n ".implode(",\n", $sqlKeyArr).";";
 			}
@@ -751,7 +838,7 @@ class Create {
 	}
 
 	function tableExists(string $table = NULL) {
-		if(!is_null($this->_tableExists)) {
+		if(is_null($this->_tableExists)) {
 			$this->_tableExists = false;
 			if(is_null($table)) $table = $this->_table;
 			$table = Connect::prep($table);

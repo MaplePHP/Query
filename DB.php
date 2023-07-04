@@ -4,15 +4,18 @@
  */
 namespace PHPFuse\Query;
 
+use PHPFuse\Query\Handlers\MySqliHandler;
+
 class DB {
 
 	// Whitelists
 	const OPERATORS = [">", ">=", "<", "<>", "!=", "<=", "<=>"]; // Comparison operators
 	const JOIN_TYPES = ["INNER", "LEFT", "RIGHT", "CROSS"]; // Join types
 
+	private $table;
 	private $method;
 	private $explain;
-	private $table;
+	
 	private $columns;
 	private $where;
 	private $having;
@@ -32,23 +35,46 @@ class DB {
 	private $union;
 	private $viewName;
 	private $sql;
+	private $dynamic;
 
+	static protected $prepareTable;
+	
 	static function __callStatic($method, $args) {
 		if(count($args) > 0) {
+
+			$defaultArgs = $args;
+			$length = count($defaultArgs);
+			//$prepareTable = $table = NULL;
 			$table = array_pop($args);
+
+
+
+			
+
+			if(!is_null(self::$prepareTable) && (($length === 1 && $method === "select") || $length === 0)) {
+				$args = $defaultArgs;
+				$table = self::$prepareTable;
+			}
+
 			$inst = static::table($table);
 			$inst->method = $method;
 
-			if($inst->method === "select" && isset($args[0])) {
-				$col = explode(",", $args[0]);
-				call_user_func_array([$inst, "columns"], $col);
-			}
+			switch($inst->method) {
+				case 'select':					
+					$col = explode(",", $args[0]);
+					call_user_func_array([$inst, "columns"], $col);
 
-			if($inst->method === "createView" || $inst->method === "replaceView") {
-				$inst->viewName = Connect::prefix()."{$args[0]}";
+				break;
+				case 'createView': case 'replaceView':
+					$inst->viewName = Connect::prefix()."{$args[0]}";
+				break;
+				case 'dropView':
+					$inst->viewName = Connect::prefix()."{$table}";
+				break;				
+				default:
+					$inst->dynamic = [[$inst, $inst->method], $args];
+				break;
 			}
-
-			if($inst->method === "dropView") $inst->viewName = Connect::prefix()."{$table}";
 
 		} else {
 			$inst = new static();
@@ -64,8 +90,6 @@ class DB {
 			$camelCaseArr = preg_split('#([A-Z][^A-Z]*)#', $method, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
 			$shift = array_shift($camelCaseArr);
 		}
-
-		
 
 		switch($shift) {
 			case "columns": case "column": case "col": case "pluck":
@@ -103,14 +127,43 @@ class DB {
 	}
 
 	/**
+	 * Get return a new generated UUID 
+	 * @return null|string
+	 */
+	public static function prepareTable(string $table): void
+	{
+		self::$prepareTable = $table;
+	}
+
+	/**
 	 * You can build queries like Larvel If you want. I do not think they have good semantics tho.
 	 * @param  string $table Mysql table name
 	 * @return self new intance
 	 */
 	static function table(string $table) {
 		$inst = new static();
+		static::$prepareTable = NULL;
 		$inst->table = $inst->prep($table);
+
 		return $inst;
+	}
+
+	/**
+	 * Get return a new generated UUID 
+	 * @return null|string
+	 */
+	public static function getUUID(): ?string
+	{
+		if($result = Connect::query("SELECT UUID()")) {
+			if($result && $result->num_rows > 0) {
+				$row = $result->fetch_row();
+				return ($row[0] ?? NULL);
+			}
+			return NULL;
+
+		} else {
+			throw new \Exception(Connect::DB()->error, 1);
+		}
 	}
 	
 	/**
@@ -490,13 +543,18 @@ class DB {
 	 * Used to call methoed that builds SQL queryies
 	 */
 	private function build() {
-		if(method_exists($this, $this->method)) {
-			return $this->{$this->method}();
+		if(!is_null($this->method) && method_exists($this, $this->method)) {
+			$inst = (!is_null($this->dynamic)) ? call_user_func_array($this->dynamic[0], $this->dynamic[1]) : $this->{$this->method}();
+			if(is_null($this->sql)) {
+				throw new \Exception("The Method \"{$this->method}\" expect to return a sql building method (like return @select() or @insert()).", 1);
+			}
+			return $inst;
+
 		} else {
 			if(is_null($this->sql)) {
-				throw new \Exception("Method \"{$this->method}\" does not exists! You need to create a method that with same name as static, that will build the query you are after. Take a look att method @method->select.", 1);
+				$m = is_null($this->method) ? "NULL" : $this->method;
+				throw new \Exception("Method \"{$m}\" does not exists! You need to create a method that with same name as static, that will build the query you are after. Take a look att method @method->select.", 1);
 			}
-			
 		}
 	}
 
@@ -508,7 +566,6 @@ class DB {
 		$this->build();
 		if($result = Connect::query($this->sql)) {
 			return $result;	
-
 		} else {
 			throw new \Exception(Connect::DB()->error, 1);
 		}
@@ -519,7 +576,8 @@ class DB {
 	 * Execute query result And fetch as obejct
 	 * @return object (Mysql result)
 	 */
-	function get() {
+	function get(): bool|object 
+	{
 		return $this->obj();
 	}
 
@@ -527,7 +585,8 @@ class DB {
 	 * SAME AS @get(): Execute query result And fetch as obejct
 	 * @return object (Mysql result)
 	 */
-	function obj() {
+	function obj(): bool|object 
+	{
 		if(($result = $this->execute()) && $result->num_rows > 0) {
 			return $result->fetch_object();
 		}
@@ -539,12 +598,12 @@ class DB {
 	 * @param  function $callback callaback, make changes in query and if return then change key
 	 * @return array
 	 */
-	function fetch(?callable $callback = NULL) {
+	function fetch(?callable $callback = NULL): array
+	{
 		$key = 0;
 		$k = NULL;
 		$arr = array();
 
-		
 		if(($result = $this->execute()) && $result->num_rows > 0) {
 			while($row = $result->fetch_object()) {
 				if($callback) $k = $callback($row, $key);
@@ -614,7 +673,8 @@ class DB {
 	 * Get current instance Table name with prefix attached
 	 * @return string
 	 */
-	function getTable() {
+	function getTable(): string 
+	{
 		return Connect::prefix().$this->table;
 	}
 
@@ -622,8 +682,27 @@ class DB {
 	 * Get current instance Columns
 	 * @return array
 	 */
-	function getColumns() {
+	function getColumns(): array 
+	{
 		return $this->columns;
+	}
+
+	/**
+	 * Get set
+	 * @return array
+	 */
+	function getSet(): array 
+	{
+		return $this->set;
+	}
+
+	/**
+	 * Get method
+	 * @return string
+	 */
+	function getMethod(): string 
+	{
+		return $this->method;
 	}
 	
 	/**
