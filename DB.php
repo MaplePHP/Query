@@ -5,6 +5,7 @@
 namespace PHPFuse\Query;
 
 use PHPFuse\Query\Handlers\MySqliHandler;
+use PHPFuse\Query\Interfaces\AttrInterface;
 
 class DB {
 
@@ -36,25 +37,19 @@ class DB {
 	private $viewName;
 	private $sql;
 	private $dynamic;
-
-	static protected $prepareTable;
 	
-	static function __callStatic($method, $args) {
+	/**
+	 * It is a semi-dynamic method builder that expects certain types of objects to be setted
+	 * @param  string $method
+	 * @param  array $args
+	 * @return static
+	 */
+	static function __callStatic($method, $args) 
+	{
 		if(count($args) > 0) {
-
 			$defaultArgs = $args;
 			$length = count($defaultArgs);
-			//$prepareTable = $table = NULL;
 			$table = array_pop($args);
-
-
-
-			
-
-			if(!is_null(self::$prepareTable) && (($length === 1 && $method === "select") || $length === 0)) {
-				$args = $defaultArgs;
-				$table = self::$prepareTable;
-			}
 
 			$inst = static::table($table);
 			$inst->method = $method;
@@ -63,7 +58,6 @@ class DB {
 				case 'select':					
 					$col = explode(",", $args[0]);
 					call_user_func_array([$inst, "columns"], $col);
-
 				break;
 				case 'createView': case 'replaceView':
 					$inst->viewName = Connect::prefix()."{$args[0]}";
@@ -83,13 +77,17 @@ class DB {
 		return $inst;
 	}
 
+
+	/**
+	 * Used to make methods into dynamic shortcuts
+	 * @param  string $method
+	 * @param  array $args
+	 * @return self
+	 */
 	function __call($method, $args) {
 
-		$camelCaseArr = array();
-		if(!is_null($method)) {
-			$camelCaseArr = preg_split('#([A-Z][^A-Z]*)#', $method, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-			$shift = array_shift($camelCaseArr);
-		}
+		$camelCaseArr = $this->extractCamelCase($method);
+		$shift = array_shift($camelCaseArr);
 
 		switch($shift) {
 			case "columns": case "column": case "col": case "pluck":
@@ -100,11 +98,13 @@ class DB {
 				$this->camelLoop($camelCaseArr, $args, function($col, $val) {
 					$this->where($col, $val);
 				});
+
 			break;
 			case "having":
 				$this->camelLoop($camelCaseArr, $args, function($col, $val) {
 					$this->having($col, $val);
 				});
+
 			break;
 			case "order":
 				if($camelCaseArr[0] === "By") array_shift($camelCaseArr);
@@ -119,20 +119,9 @@ class DB {
 				$this->group = " GROUP BY ".implode(",", $this->prepArr($args));
 			break;
 			default;
-				throw new \Exception("Method \"{$method}\" does not exists!", 1);
-				
+				throw new \Exception("Method \"{$method}\" does not exists!", 1);		
 		}
-
 		return $this;
-	}
-
-	/**
-	 * Get return a new generated UUID 
-	 * @return null|string
-	 */
-	public static function prepareTable(string $table): void
-	{
-		self::$prepareTable = $table;
 	}
 
 	/**
@@ -142,320 +131,8 @@ class DB {
 	 */
 	static function table(string $table) {
 		$inst = new static();
-		static::$prepareTable = NULL;
 		$inst->table = $inst->prep($table);
-
 		return $inst;
-	}
-
-	/**
-	 * Get return a new generated UUID 
-	 * @return null|string
-	 */
-	public static function getUUID(): ?string
-	{
-		if($result = Connect::query("SELECT UUID()")) {
-			if($result && $result->num_rows > 0) {
-				$row = $result->fetch_row();
-				return ($row[0] ?? NULL);
-			}
-			return NULL;
-
-		} else {
-			throw new \Exception(Connect::DB()->error, 1);
-		}
-	}
-	
-	/**
-	 * Change where compare operator from default "=". 
-	 * Will change back to default after where method is triggered
-	 * @param  string $operator once of (">", ">=", "<", "<>", "!=", "<=", "<=>")
-	 * @return self
-	 */
-	function compare(string $operator) {
-		$this->compare = $this->operator($operator);
-		return $this;
-	}
-
-	/**
-	 * Chaining where with mysql "AND" or with "OR"
-	 * @return self
-	 */
-	function and() {
-		$this->whereAnd = "AND";
-		return $this;
-	}
-
-	/**
-	 * Chaining where with mysql "AND" or with "OR"
-	 * @return self
-	 */
-	function or() {
-		$this->whereAnd = "OR";
-		return $this;
-	}
-	/**
-	 * Use vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
-	 * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
-	 * @param  array     $arr     Mysql prep values
-	 * @return self
-	 */
-	function sprint(string $str, array $arr = array()) {
-		return vsprintf($str, $this->prepArr($arr, false));
-	}
-
-
-	/**
-	 * Raw Mysql Where input
-	 * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually 
-	 * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
-	 * @param  array     $arr     Mysql prep values
-	 * @return self
-	 */
-	function whereRaw(string $sql, array $arr = array()) {
-		$this->resetWhere();
-		$this->where[$this->whereIndex][$this->whereAnd][] = $this->sprint($sql, $arr);
-	}
-
-	/**
-	 * Create protected MySQL WHERE input
-	 * Supports dynamic method name calls like: whereIdStatus(1, 0)
-	 * @param  string      $key      Mysql column
-	 * @param  string      $val      Equals to value
-	 * @param  string|null $operator Change comparison operator from default "=".
-	 * @return self
-	 */
-	function where(string $key, string $val, ?string $operator = NULL) {
-		if(!is_null($operator)) $this->compare = $this->operator($operator);
-		$this->where[$this->whereIndex][$this->whereAnd][$this->compare][$key] = $this->prep($val);
-		$this->compare = "=";
-		return $this;
-	}
-
-	/**
-	 * Group mysql WHERE inputs
-	 * @param  callable $call  Evere method where placed inside callback will be grouped.
-	 * @return self
-	 */
-	function whereBind(callable $call) {
-		if(!is_null($this->where)) $this->whereIndex++;
-		$this->resetWhere();
-		$call($this);
-		$this->whereIndex++;
-		return $this;
-	}
-
-	/**
-	 * Create protected MySQL HAVING input
-	 * @param  string      $key      Mysql column
-	 * @param  string      $val      Equals to value
-	 * @param  string|null $operator Change comparison operator from default "=".
-	 * @return self
-	 */
-	function having(string $key, string $val, ?string $operator = NULL) {
-		if(!is_null($operator)) $this->compare = $this->operator($operator);
-		$this->having[$this->whereIndex][$this->whereAnd][$this->compare][$key] = $this->prep($val);
-		$this->compare = "=";
-		return $this;
-	}
-
-	/**
-	 * Raw Mysql HAVING input
-	 * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually 
-	 * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
-	 * @param  array     $arr     Mysql prep values
-	 * @return self
-	 */
-	function havingRaw(string $sql, array $arr = array()) {
-		$this->resetWhere();
-		$this->having[$this->whereIndex][$this->whereAnd][] = $this->sprint($sql, $arr);
-	}
-
-	/**
-	 * Add a limit and maybee a offset
-	 * @param  int      $limit
-	 * @param  int|null $offset
-	 * @return self
-	 */
-	function limit(int $limit, ?int $offset = NULL) {
-		$this->limit = (int)$limit;
-		if(!is_null($offset)) $this->offset = (int)$offset;
-		return $this;
-	}
-
-	/**
-	 * Add a offset (if limit is not set then it will automatically become "1").
-	 * @param  int    $offset
-	 * @return self
-	 */
-	function offset(int $offset) {
-		$this->offset = (int)$offset;
-		return $this;
-	}
-
-
-	/**
-	 * Set Mysql ORDER
-	 * @param  string $col  Mysql Column
-	 * @param  string $sort Mysql sort type. Only "ASC" OR "DESC" is allowed, anything else will become "ASC".
-	 * @return self
-	 */
-	function order(string $col, string $sort = "ASC") {
-		$col = $this->prep($col);
-		$sort = $this->orderSort($sort);
-
-		$this->order[] = "{$col} {$sort}";
-		return $this;
-	}
-
-	/**
-	 * Raw Mysql ORDER input
-	 * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually 
-	 * @param  string    $str     SQL string example: (id ASC, parent DESC)
-	 * @param  array     $arr     Mysql prep values
-	 * @return self
-	 */
-	function orderRaw(string $sql, array $arr = array()) {
-		$this->order[] = $this->sprint($sql, $arr);
-		return $this;
-	}
-
-	/**
-	 * Mysql JOIN query (Default: INNER)
-	 * Supports dynamic method name calls like: joinLeft, joinRight...
-	 * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually 
-	 * @param  string $table  Table name of the joined table
-	 * @param  string $sql    SQL string example: (a.id = b.user_id AND status = '%d')
-	 * @param  array  $sprint Mysql prep values
-	 * @param  string $type   Valid join type ("INNER", "LEFT", "RIGHT", "CROSS"). Anything else will become "INNER".
-	 * @return self
-	 */
-	function join(string $table, string $sql, array $sprint = array(), string $type = "INNER") {
-		$prefix = Connect::prefix();
-		$type = $this->joinTypes(strtoupper($type));
-		$this->join[$table] = "{$type} JOIN {$prefix}{$table} ON ".$this->sprint($sql, $sprint);
-		return $this;
-	}
-
-	/**
-	 * Disable mysql query cache
-	 * @return self
-	 */
-	function noCache() {
-		$this->noCache = "SQL_NO_CACHE ";
-		return $this;
-	}
-
-	/**
-	 * Add make query a distinct call
-	 * @return self
-	 */
-	function distinct() {
-		$this->distinct = "DISTINCT ";
-		return $this;
-	}
-
-	/**
-	 * Exaplain the mysql query. Will tell you how you can make improvements
-	 * @return self
-	 */
-	function explain() {
-		$this->explain = "EXPLAIN ";
-		return $this;
-	}
-
-	/**
-	 * DEPRECATE: Calculate rows in query
-	 * @return self
-	 */
-	function calcRows() {
-		$this->calRows = "SQL_CALC_FOUND_ROWS ";
-		return $this;
-	}
-
-	/**
-	 * Create INSERT or UPDATE set Mysql input to insert
-	 * @param  string|array  $key    (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
-	 * @param  string|null   $value  If key is string then value will pair with key "Lorem ipsum"
-	 * @return self
-	 */
-	function set(string|array $key, ?string $value = NULL): self 
-	{
-		if(is_array($key)) {
-			$this->set = array_merge($this->set, $this->prepArr($key, true));
-		} else {
-			$this->set[$key] = $this->enclose($this->prep($value));
-		}
-		return $this;
-	}
-
-	/**
-	 * UPROTECTED: Create INSERT or UPDATE set Mysql input to insert
-	 * @param string $key   Mysql column
-	 * @param string $value Input/insert value (UPROTECTED and Will not enclose)
-	 */
-	function setRaw(string $key, string $value): self 
-	{
-		$this->set[$key] = $value;
-		return $this;
-	}
-
-	/**
-	 * Update if ID KEY is duplicate else insert
-	 * @param  string|array  $key    (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
-	 * @param  string|null   $value  If key is string then value will pair with key "Lorem ipsum"
-	 * @return self
-	 */
-	function onDupKey($key = NULL, ?string $value = NULL) {
-		return $this->onDuplicateKey($key, $value);
-	}
-
-	// Same as onDupKey
-	function onDuplicateKey($key = NULL, ?string $value = NULL) {
-		$this->dupSet = array();
-		if(!is_null($key)) {
-			if(is_array($key)) {
-				$this->dupSet = $this->prepArr($key, true);
-			} else {
-				$this->dupSet[$key] = $this->enclose($this->prep($value));
-			}
-		}
-		return $this;
-	}
-
-	/**
-	 * Union result
-	 * @param  DB $inst
-	 * @param  bool  $allowDuplicate  UNION by default selects only distinct values. Use UNION ALL to also select duplicate values!
-	 * @return self
-	 */
-	function union(DB $inst, bool $allowDuplicate = false) {
-		$this->order = NULL;
-		$this->limit = NULL;
-		$this->union = " UNION ".($allowDuplicate ? "ALL ": "").$inst->select()->sql();
-		return $this;
-	}
-
-	/**
-	 * Enclose value
-	 * @param  string        $val
-	 * @param  bool|boolean  $enclose disbale enclose
-	 * @return string
-	 */
-	function enclose(string $val, bool $enclose = true) {
-		if($enclose) {
-			return "'{$val}'";
-		}
-		return $val;
-	}
-
-	/**
-	 * Genrate SQL string of current instance/query
-	 * @return string
-	 */
-	function sql() {
-		$this->build();
-		return $this->sql;
 	}
 
 	/**
@@ -538,6 +215,325 @@ class DB {
 		$this->sql = "DROP VIEW ".$this->viewName;
 		return $this;
 	}
+
+	/**
+	 * Get return a new generated UUID 
+	 * @return null|string
+	 */
+	public static function getUUID(): ?string
+	{
+		if($result = Connect::query("SELECT UUID()")) {
+			if($result && $result->num_rows > 0) {
+				$row = $result->fetch_row();
+				return ($row[0] ?? NULL);
+			}
+			return NULL;
+
+		} else {
+			throw new \Exception(Connect::DB()->error, 1);
+		}
+	}
+	
+	/**
+	 * Change where compare operator from default "=". 
+	 * Will change back to default after where method is triggered
+	 * @param  string $operator once of (">", ">=", "<", "<>", "!=", "<=", "<=>")
+	 * @return self
+	 */
+	function compare(string $operator) {
+		$this->compare = $this->operator($operator);
+		return $this;
+	}
+
+	/**
+	 * Chaining where with mysql "AND" or with "OR"
+	 * @return self
+	 */
+	function and() {
+		$this->whereAnd = "AND";
+		return $this;
+	}
+
+	/**
+	 * Chaining where with mysql "AND" or with "OR"
+	 * @return self
+	 */
+	function or() {
+		$this->whereAnd = "OR";
+		return $this;
+	}
+	/**
+	 * Use vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
+	 * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
+	 * @param  array     $arr     Mysql prep values
+	 * @return self
+	 */
+	function sprint(string $str, array $arr = array()) {
+		return vsprintf($str, $this->prepArr($arr, false));
+	}
+
+
+	/**
+	 * Raw Mysql Where input
+	 * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually 
+	 * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
+	 * @param  array     $arr     Mysql prep values
+	 * @return self
+	 */
+	function whereRaw(string $sql, ...$arr) {
+		if(is_array($arr[0] ?? NULL)) $arr = $arr[0];
+		$this->resetWhere();
+		$this->where[$this->whereIndex][$this->whereAnd][] = $this->sprint($sql, $arr);
+		return $this;
+	}
+
+	/**
+	 * Create protected MySQL WHERE input
+	 * Supports dynamic method name calls like: whereIdStatus(1, 0)
+	 * @param  string      $key      Mysql column
+	 * @param  string      $val      Equals to value
+	 * @param  string|null $operator Change comparison operator from default "=".
+	 * @return self
+	 */
+	function where(string|AttrInterface $key, string|AttrInterface $val, ?string $operator = NULL) {
+		// Whitelist operator
+		if(!is_null($operator)) $this->compare = $this->operator($operator);
+		$key = (string)$this->prep($key);
+		$val = $this->prep($val);
+		$this->where[$this->whereIndex][$this->whereAnd][$this->compare][$key] = $val;
+		$this->resetWhere();
+		return $this;
+	}
+
+	/**
+	 * Group mysql WHERE inputs
+	 * @param  callable $call  Evere method where placed inside callback will be grouped.
+	 * @return self
+	 */
+	function whereBind(callable $call) {
+		if(!is_null($this->where)) $this->whereIndex++;
+		$this->resetWhere();
+		$call($this);
+		$this->whereIndex++;
+		return $this;
+	}
+
+	/**
+	 * Create protected MySQL HAVING input
+	 * @param  string      $key      Mysql column
+	 * @param  string      $val      Equals to value
+	 * @param  string|null $operator Change comparison operator from default "=".
+	 * @return self
+	 */
+	function having(string|AttrInterface $key, string|AttrInterface $val, ?string $operator = NULL) {
+		if(!is_null($operator)) $this->compare = $this->operator($operator);
+		$key = (string)$this->prep($key);
+		$val = $this->prep($val);
+		$this->having[$this->whereIndex][$this->whereAnd][$this->compare][$key] = $val;
+		$this->resetWhere();
+		return $this;
+	}
+
+	/**
+	 * Raw Mysql HAVING input
+	 * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually 
+	 * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
+	 * @param  array     $arr     Mysql prep values
+	 * @return self
+	 */
+	function havingRaw(string $sql, ...$arr) {
+		if(is_array($arr[0] ?? NULL)) $arr = $arr[0];
+		$this->resetWhere();
+		$this->having[$this->whereIndex][$this->whereAnd][] = $this->sprint($sql, $arr);
+	}
+
+	/**
+	 * Add a limit and maybee a offset
+	 * @param  int      $limit
+	 * @param  int|null $offset
+	 * @return self
+	 */
+	function limit(int $limit, ?int $offset = NULL) {
+		$this->limit = (int)$limit;
+		if(!is_null($offset)) $this->offset = (int)$offset;
+		return $this;
+	}
+
+	/**
+	 * Add a offset (if limit is not set then it will automatically become "1").
+	 * @param  int    $offset
+	 * @return self
+	 */
+	function offset(int $offset) {
+		$this->offset = (int)$offset;
+		return $this;
+	}
+
+
+	/**
+	 * Set Mysql ORDER
+	 * @param  string $col  Mysql Column
+	 * @param  string $sort Mysql sort type. Only "ASC" OR "DESC" is allowed, anything else will become "ASC".
+	 * @return self
+	 */
+	function order(string|AttrInterface $col, string $sort = "ASC") {
+		$col = $this->prep($col);
+		$sort = $this->orderSort($sort);
+
+		$this->order[] = "{$col} {$sort}";
+		return $this;
+	}
+
+	/**
+	 * Raw Mysql ORDER input
+	 * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually 
+	 * @param  string    $str     SQL string example: (id ASC, parent DESC)
+	 * @param  array     $arr     Mysql prep values
+	 * @return self
+	 */
+	function orderRaw(string $sql, ...$arr) {
+		if(is_array($arr[0] ?? NULL)) $arr = $arr[0];
+		$this->order[] = $this->sprint($sql, $arr);
+		return $this;
+	}
+
+	/**
+	 * Mysql JOIN query (Default: INNER)
+	 * Supports dynamic method name calls like: joinLeft, joinRight...
+	 * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually 
+	 * @param  string $table  Table name of the joined table
+	 * @param  string $sql    SQL string example: (a.id = b.user_id AND status = '%d')
+	 * @param  array  $sprint Mysql prep values
+	 * @param  string $type   Valid join type ("INNER", "LEFT", "RIGHT", "CROSS"). Anything else will become "INNER".
+	 * @return self
+	 */
+	function join(string $table, string $sql, array $sprint = array(), string $type = "INNER") {
+		$prefix = Connect::prefix();
+		$type = $this->joinTypes(strtoupper($type));
+		$this->join[$table] = "{$type} JOIN {$prefix}{$table} ON ".$this->sprint($sql, $sprint);
+		return $this;
+	}
+
+	/**
+	 * Disable mysql query cache
+	 * @return self
+	 */
+	function noCache() {
+		$this->noCache = "SQL_NO_CACHE ";
+		return $this;
+	}
+
+	/**
+	 * Add make query a distinct call
+	 * @return self
+	 */
+	function distinct() {
+		$this->distinct = "DISTINCT ";
+		return $this;
+	}
+
+	/**
+	 * Exaplain the mysql query. Will tell you how you can make improvements
+	 * @return self
+	 */
+	function explain() {
+		$this->explain = "EXPLAIN ";
+		return $this;
+	}
+
+	/**
+	 * DEPRECATE: Calculate rows in query
+	 * @return self
+	 */
+	function calcRows() {
+		$this->calRows = "SQL_CALC_FOUND_ROWS ";
+		return $this;
+	}
+
+	/**
+	 * Create INSERT or UPDATE set Mysql input to insert
+	 * @param  string|array  $key    (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
+	 * @param  string|null   $value  If key is string then value will pair with key "Lorem ipsum"
+	 * @return self
+	 */
+	function set(string|array|AttrInterface $key, string|AttrInterface $value = NULL): self 
+	{
+		if(is_array($key)) {
+			$this->set = array_merge($this->set, $this->prepArr($key, true));
+		} else {
+			$this->set[(string)$key] = $this->enclose($this->prep($value));
+		}
+		return $this;
+	}
+
+	/**
+	 * UPROTECTED: Create INSERT or UPDATE set Mysql input to insert
+	 * @param string $key   Mysql column
+	 * @param string $value Input/insert value (UPROTECTED and Will not enclose)
+	 */
+	function setRaw(string $key, string $value): self 
+	{
+		$this->set[$key] = $value;
+		return $this;
+	}
+
+	/**
+	 * Update if ID KEY is duplicate else insert
+	 * @param  string|array  $key    (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
+	 * @param  string|null   $value  If key is string then value will pair with key "Lorem ipsum"
+	 * @return self
+	 */
+	function onDupKey($key = NULL, ?string $value = NULL) {
+		return $this->onDuplicateKey($key, $value);
+	}
+
+	// Same as onDupKey
+	function onDuplicateKey($key = NULL, ?string $value = NULL) {
+		$this->dupSet = array();
+		if(!is_null($key)) {
+			if(is_array($key)) {
+				$this->dupSet = $this->prepArr($key, true);
+			} else {
+				$this->dupSet[$key] = $this->enclose($this->prep($value));
+			}
+		}
+		return $this;
+	}
+
+	/**
+	 * Union result
+	 * @param  DB $inst
+	 * @param  bool  $allowDuplicate  UNION by default selects only distinct values. Use UNION ALL to also select duplicate values!
+	 * @return self
+	 */
+	function union(DB $inst, bool $allowDuplicate = false) {
+		$this->order = NULL;
+		$this->limit = NULL;
+		$this->union = " UNION ".($allowDuplicate ? "ALL ": "").$inst->select()->sql();
+		return $this;
+	}
+
+	/**
+	 * Enclose value
+	 * @param  string        $val
+	 * @param  bool|boolean  $enclose disbale enclose
+	 * @return string
+	 */
+	function enclose(string|AttrInterface $val, bool $enclose = true) {
+		if($val instanceof AttrInterface) return $val;
+		if($enclose) return "'{$val}'";
+		return $val;
+	}
+
+	/**
+	 * Genrate SQL string of current instance/query
+	 * @return string
+	 */
+	function sql() {
+		$this->build();
+		return $this->sql;
+	}
+
 
 	/**
 	 * Used to call methoed that builds SQL queryies
@@ -713,7 +709,15 @@ class DB {
 		$this->compare = "=";
 	}
 
-	private function camelLoop(array $camelCaseArr, array $valArr, callable $call) {
+	/**
+	 * Use to loop camel case method columns
+	 * @param  array    $camelCaseArr
+	 * @param  array    $valArr
+	 * @param  callable $call
+	 * @return void
+	 */
+	private function camelLoop(array $camelCaseArr, array $valArr, callable $call): void 
+	{
 		foreach($camelCaseArr as $k => $col) {
 			$col = lcfirst($col);
 			$value = ($valArr[$k] ?? NULL);
@@ -726,7 +730,10 @@ class DB {
 	 * @param  string $val
 	 * @return string
 	 */
-	function prep(string $val) {
+	function prep(string|AttrInterface $val) {
+		if($val instanceof AttrInterface) {
+			return $val;
+		}
 		return Connect::prep($val);
 	}
 
@@ -737,13 +744,12 @@ class DB {
 	 * @param  bool|boolean $trim    Auto trime
 	 * @return array
 	 */
-	private function prepArr(array $arr, bool $enclose = true, bool $trim = false) {
+	private function prepArr(array $arr, bool $enclose = true) {
 		$new = array();
 		foreach($arr as $k => $v) {
-			$v = (string)$v;
 			$key = $this->prep($k);
-			if($trim) $v = trim($v);
-			$value = $this->enclose($this->prep($v), $enclose);
+			$v = $this->prep($v);
+			$value = $this->enclose($v, $enclose);
 			$new[$key] = $value;
 		}
 		return $new;
@@ -788,28 +794,42 @@ class DB {
 		return "";
 	}
 
-	private function buildWhere(string $prefix, ?array $where) {
+	/**
+	 * Will build the 
+	 * @param  string $prefix [description]
+	 * @param  array  $where  [description]
+	 * @return [type]         [description]
+	 */
+	private function buildWhere(string $prefix, ?array $where): string 
+	{
 		$out = "";
 		if(!is_null($where)) {
 			$out = " {$prefix}";
-			foreach($where as $i => $array) {
+
+			$i = 0;
+			foreach($where as $array) {
 				$firstAnd = key($array);
 				$andOr = "";
-				$out .= (($i) ? " {$firstAnd}" : "")." (";
+				$out .= (($i > 0) ? " {$firstAnd}" : "")." (";
+				$c = 0;
 				foreach($array as $key => $arr) {
 					foreach($arr as $operator => $a) {
 						if(is_array($a)) {
 							foreach($a as $col => $val) {
-								$out .= "{$andOr} {$col} {$operator} '{$val}' ";
-								$andOr = $key;
+								if($c > 0) $out .= "{$key} ";
+								$out .= "{$col} {$operator} ".$this->enclose($val)." ";
+								//$andOr = $key;
+								$c++;
 							}
 						} else {
-							$out .= "{$andOr} {$a} ";
-							$andOr = $key;
+							$out .= "{$key} {$a} ";
+							$c++;
 						}
 					}
+					
 				}
 				$out .= ")";
+				$i++;
 			}
 		}
 		return $out;
@@ -901,6 +921,24 @@ class DB {
 		} else {
 			return array("row" => $output, "total" => $total);
 		}
+	}
+
+
+
+
+	/**
+	 * Will extract camle case to array
+	 * @param  string $value string value with possible camel cases
+	 * @return array
+	 */
+	private function extractCamelCase(string $value): array 
+	{
+		$arr = array();
+		if(is_string($value)) {
+			$arr = preg_split('#([A-Z][^A-Z]*)#', $value, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
+		}
+		return $arr;
+
 	}
 
 }

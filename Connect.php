@@ -75,8 +75,6 @@ class Connect {
 		return self::$prefix;
 	}
 
-	
-
 	static function selectDB(string $DB, ?string $prefix = NULL) {
 		mysqli_select_db(self::$DB, $DB);
 		if(!is_null($prefix)) self::setPrefix($prefix);

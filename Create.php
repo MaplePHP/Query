@@ -129,12 +129,12 @@ class Create {
 
 
 	function __construct(string $table, ?string $prefix = NULL) {
-		$this->_prefix = $prefix;
+		if(!is_null($this->_prefix)) $this->_prefix = Connect::prep($prefix);
 		$this->_charset = "utf8";
 		$this->_engine = "InnoDB";
 		$this->_rowFormat = "DYNAMIC";
-		$this->_tableText = $table;
-		$this->_table = "{$this->_prefix}{$table}";
+		$this->_tableText = Connect::prep($table);
+		$this->_table = "{$this->_prefix}{$this->_tableText}";
 	}
 
 	/**
@@ -274,7 +274,7 @@ class Create {
 	 * Add diffrent kinds of attributes to column
 	 * @return array
 	 */
-	function _adding() {
+	private function adding() {
 		$arr = array();
 		$methodArr = array("type", "generated", "attributes", "collation", "null", "default");
 		foreach($methodArr as $method) {
@@ -352,7 +352,7 @@ class Create {
 		$this->_columns[$col] = $arr;
 		$this->_col = $col;
 		$this->_add[$col] = "";
-		$this->_addArr = $this->_adding();
+		$this->_addArr = $this->adding();
 
 		$attr = implode(" ", $this->_addArr);
 
@@ -524,9 +524,6 @@ class Create {
 		if(is_null($this->_tbKeysType)) $this->_tbKeys();
 		return $this->_tbKeysType;
 	}
-
-
-
 	
 	/**
 	 * Drop column
