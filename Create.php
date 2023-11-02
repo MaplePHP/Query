@@ -87,6 +87,8 @@ class Create {
 	private $_tbKeys;
 	private $_tbKeysType;
 
+	//private $columnData;
+
 
 	private $_keys = array();
 	private $_ai = array();
@@ -104,7 +106,6 @@ class Create {
 	private $_build;
 	private $_columns;
 	private $_tableExists;
-
 
 	CONST ARGS = [
 		"type" => NULL,
@@ -137,6 +138,10 @@ class Create {
 		$this->_table = "{$this->_prefix}{$this->_tableText}";
 	}
 
+	function getTable() {
+		return $this->_table;
+	}
+
 	/**
 	 * Lista all columns set i create/migration
 	 * @return self
@@ -150,11 +155,13 @@ class Create {
 	 * @return self
 	 */
 	function auto() {
+
 		if($this->tableExists($this->_table)) {
 			$this->alter($this->_table);
 		} else {
 			$this->create();
 		}
+
 		return $this;
 	}
 
@@ -331,74 +338,79 @@ class Create {
 	 * @return self
 	 */
 	function column(string $col, array $arr) {
+		$this->_columns[$col] = $arr;
+		return $this;
+	}
 
-		$col = Connect::prep($col);
+	private function processColumnData() {
 
-		$this->_args = array_merge($this::ARGS, $arr);
+		foreach($this->_columns as $col => $arr) {
+			$col = Connect::prep($col);
+			$this->_args = array_merge($this::ARGS, $arr);
 
-		$this->_hasRename = NULL;
-		if($hasRename = $this->hasRename()) {
-			$this->_hasRename[$col] = $hasRename;
-			if(!$this->columnExists($this->_table, $col)) {
-				foreach($hasRename as $k) {
-					if($this->columnExists($this->_table, $k)) {
-						$col = Connect::prep($k);
-						break;
+			$this->_hasRename = NULL;
+			if($hasRename = $this->hasRename()) {
+				$this->_hasRename[$col] = $hasRename;
+				if(!$this->columnExists($this->_table, $col)) {
+					foreach($hasRename as $k) {
+						if($this->columnExists($this->_table, $k)) {
+							$col = Connect::prep($k);
+							break;
+						}
 					}
 				}
 			}
-		}
 
-		$this->_columns[$col] = $arr;
-		$this->_col = $col;
-		$this->_add[$col] = "";
-		$this->_addArr = $this->adding();
+			//$this->_columns[$col] = $arr;
+			$this->_col = $col;
+			$this->_add[$col] = "";
+			$this->_addArr = $this->adding();
 
-		$attr = implode(" ", $this->_addArr);
+			$attr = implode(" ", $this->_addArr);
 
-		if($index = $this->index()) $this->_keys[$col] = $index;
-		if($ai = $this->ai()) $this->_ai[$col] = ["type" => $this->type(), "value" => $ai];
-		if($rename = $this->renameColumn()) $this->_rename[$col] = $rename;
-		if($fk = $this->fk()) {
-			$this->_fkList = $this->fkExists($this->_table, $col);
-			$this->_fk[$col] = $fk; 
-		}
+			if($index = $this->index()) $this->_keys[$col] = $index;
+			if($ai = $this->ai()) $this->_ai[$col] = ["type" => $this->type(), "value" => $ai];
+			if($rename = $this->renameColumn()) $this->_rename[$col] = $rename;
+			if($fk = $this->fk()) {
+				$this->_fkList = $this->fkExists($this->_table, $col);
+				$this->_fk[$col] = $fk; 
+			}
 
-		if($this->_type === "alter") {
-			if($result = $this->columnExists($this->_table, $col)) {
-				
-				if($drop = $this->dropColumn()) {
-					$this->_add[$col] .= "{$drop} `{$col}`";
-					if(isset($this->_keys[$col])) unset($this->_keys[$col]);
-					if(isset($this->_ai[$col])) unset($this->_ai[$col]);
+			if($this->_type === "alter") {
+				if($result = $this->columnExists($this->_table, $col)) {
+					
+					if($drop = $this->dropColumn()) {
+						$this->_add[$col] .= "{$drop} `{$col}`";
+						if(isset($this->_keys[$col])) unset($this->_keys[$col]);
+						if(isset($this->_ai[$col])) unset($this->_ai[$col]);
+
+					} else {
+						$this->_colData[$col] = $result->fetch_object();
+						$this->_add[$col] .= "MODIFY `{$col}` {$attr}";
+					}
 
 				} else {
-					$this->_colData[$col] = $result->fetch_object();
-					$this->_add[$col] .= "MODIFY `{$col}` {$attr}";
+					if($drop = $this->dropColumn()) {
+						if(isset($this->_keys[$col])) unset($this->_keys[$col]);
+						if(isset($this->_ai[$col])) unset($this->_ai[$col]);
+
+					} else {
+						if(is_null($this->hasRename())) {
+							$this->_add[$col] .= "ADD COLUMN `{$col}` {$attr}";
+							if(!is_null($this->_prev)) {
+								$this->_add[$col] .= " AFTER `".$this->after()."`";
+							}
+						}
+					}	
 				}
 
 			} else {
-				if($drop = $this->dropColumn()) {
-					if(isset($this->_keys[$col])) unset($this->_keys[$col]);
-					if(isset($this->_ai[$col])) unset($this->_ai[$col]);
-
-				} else {
-					if(is_null($this->hasRename())) {
-						$this->_add[$col] .= "ADD COLUMN `{$col}` {$attr}";
-						if(!is_null($this->_prev)) {
-							$this->_add[$col] .= " AFTER `".$this->after()."`";
-						}
-					}
-				}	
+				$this->_add[$col] .= "`{$col}` {$attr}";	
 			}
 
-		} else {
-			$this->_add[$col] .= "`{$col}` {$attr}";	
+			$this->_add[$col] = trim($this->_add[$col]);
+			$this->_prev = $col;
 		}
-
-		$this->_add[$col] = trim($this->_add[$col]);
-		$this->_prev = $col;
-		return $this;
 	}
 
 	/**
@@ -427,6 +439,7 @@ class Create {
 	 */
 	function build() {
 
+		$this->processColumnData();
 		
 		if(is_array($this->_add)) {
 			$this->_add = array_filter($this->_add);

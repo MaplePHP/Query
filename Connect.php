@@ -7,6 +7,9 @@
 
 namespace PHPFuse\Query;
 
+use mysqli, mysqli_result;
+use PHPFuse\Query\Exceptions\ConnectException;
+
 class Connect {
 
 	private $server;
@@ -27,65 +30,119 @@ class Connect {
 		self::$self = $this;
 	}
 
-	function setCharset(?string $charset) {
+	/**
+	 * Set MySqli charset
+	 * @param string $charset
+	 */
+	function setCharset(string $charset): void 
+	{
 		$this->charset = $charset;
-		return $this;
 	}
 
-	static function setPrefix(string $prefix) {
+	/**
+	 * Set table prefix
+	 * @param string $prefix
+	 */
+	static function setPrefix(string $prefix): void 
+	{
 		self::$prefix = $prefix;
 	}
 
-	function getDBName() {
+	/**
+	 * Connect to database
+	 * @return void
+	 */
+	function execute(): void 
+	{
+		self::$DB = new mysqli($this->server, $this->user, $this->pass, $this->dbname);
+		if(mysqli_connect_error()) {
+			die('Failed to connect to MySQL: ' . mysqli_connect_error());
+			throw new ConnectException('Failed to connect to MySQL: '.mysqli_connect_error(), 1);
+		}
+		if(!is_null($this->charset) && !mysqli_set_charset(self::$DB, $this->charset)) {
+			throw new ConnectException("Error loading character set ".$this->charset.": ".mysqli_error(self::$DB), 2);
+		}
+		mysqli_character_set_name(self::$DB);
+	}
+
+	/**
+	 * Get current instance
+	 * @return self
+	 */
+	static function inst(): self 
+	{
+		return static::$self;
+	}
+
+	/**
+	 * Get current DB connection
+	 */
+	static function DB(): mysqli 
+	{
+		return static::$DB;
+	}
+
+	/**
+	 * Get selected database name
+	 * @return string
+	 */
+	function getDBName(): string 
+	{
 		return $this->dbname;
 	}
 
-	function execute() {
-		self::$DB = new \mysqli($this->server, $this->user, $this->pass, $this->dbname);
-		if(mysqli_connect_error()) {
-			die('Failed to connect to MySQL: ' . mysqli_connect_error());
-			throw new \Exception('Failed to connect to MySQL: '.mysqli_connect_error(), 1);
-		}
-
-		if(!is_null($this->charset) && !mysqli_set_charset(self::$DB, $this->charset)) {
-			throw new \Exception("Error loading character set ".$this->charset.": ".mysqli_error(self::$DB), 2);
-		}
-		
-		mysqli_character_set_name(self::$DB);
-
+	/**
+	 * Get current table prefix
+	 * @return string
+	 */
+	static function getPrefix(): string 
+	{
+		return static::$prefix;
 	}
 
-	static function inst() {
-		return self::$self;
+	/**
+	 * Query sql string
+	 * @param  string $sql
+	 * @return mysqli_result|bool
+	 */
+	static function query(string $sql): mysqli_result|bool 
+	{
+		return static::DB()->query($sql);
 	}
 
-	static function DB() {
-		return self::$DB;
+	/**
+	 * Protect/prep database values from injections
+	 * @param  string $value
+	 * @return string
+	 */
+	static function prep(string $value): string 
+	{
+		return static::DB()->real_escape_string($value);
 	}
 
-	static function query(string $sql) {
-		return self::DB()->query($sql);
-	}
-
-	static function prep(string $value) {
-		return self::DB()->real_escape_string($value);
-	}
-
-	static function prefix() {
-		return self::$prefix;
-	}
-
-	static function selectDB(string $DB, ?string $prefix = NULL) {
-		mysqli_select_db(self::$DB, $DB);
-		if(!is_null($prefix)) self::setPrefix($prefix);
+	/**
+	 * Select a new database
+	 * @param  string      $DB
+	 * @param  string|null $prefix Expected table prefix (NOT database prefix)
+	 * @return void
+	 */
+	static function selectDB(string $DB, ?string $prefix = NULL): void 
+	{
+		mysqli_select_db(static::$DB, $DB);
+		if(!is_null($prefix)) static::setPrefix($prefix);
 	}
 	
-	static function multiQuery(string $sql, &$mysqli = NULL) {
-
+	/**
+	 * Execute multiple quries at once (e.g. from a sql file)
+	 * @param  string $sql
+	 * @param  object|null &$mysqli
+	 * @return array
+	 */
+	static function multiQuery(string $sql, object &$mysqli = NULL): array 
+	{
 		$c = 0;
 		$err = array();
 		$mysqli = self::$DB;
-
 		if(mysqli_multi_query($mysqli, $sql)) {
 		    do {
 		    	if($result = mysqli_use_result($mysqli)) {
@@ -108,6 +165,49 @@ class Connect {
 
 		//mysqli_close($mysqli);
 		return $err;
+	}
+
+	/**
+	 * Get current table prefix
+	 * @return string
+	 */
+	static function prefix(): string 
+	{
+		return static::getPrefix();
+	}
+	
+	/**
+	 * Profile mysql speed
+	 */
+	static function startProfile(): void 
+	{
+		Connect::query("set profiling=1");
+	}
+	
+	/**
+	 * Close profile and print results
+	 */
+	static function endProfile($html = true): string|array 
+	{
+		$totalDur = 0;
+		$rs = Connect::query("show profiles");
+
+		$output = "";
+		if($html) $output .= "<p style=\"color: red;\">";
+		while($rd = $rs->fetch_object()) {
+			$dur = round($rd->Duration, 4) * 1000;
+			$totalDur += $dur;
+		    $output .= $rd->Query_ID.' - <strong>'.$dur.' ms</strong> - '.$rd->Query."<br>\n";
+		}
+		$total = round($totalDur, 4);
+		
+		if($html) {
+			$output .= "Total: ".$total." ms\n";
+			$output .= "</p>";
+			return $output;
+		} else {
+			return array("row" => $output, "total" => $total);
+		}
 	}
 
 }
