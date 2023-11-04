@@ -4,7 +4,6 @@ namespace PHPFuse\Query\Exceptions;
 
 use Exception;
 
-class ConnectException extends Exception {
-
-	
+class ConnectException extends Exception
+{
 }

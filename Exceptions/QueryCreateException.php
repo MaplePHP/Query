@@ -2,7 +2,6 @@
 
 namespace PHPFuse\Query\Exceptions;
 
-class QueryCreateException extends \InvalidArgumentException {
-
-	
+class QueryCreateException extends \InvalidArgumentException
+{
 }

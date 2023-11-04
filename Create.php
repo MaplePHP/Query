@@ -1,875 +1,957 @@
 <?php
 /**
-	// USAGE:
+    // USAGE:
 
-	// Init class
-	// Arg1: Table name
-	$mig = new \query\create("test");
+    // Init class
+    // Arg1: Table name
+    $mig = new \query\create("test");
 
-	// Rename: IF table name is "test" or "test1" then it will be renamed to "test2".
-	// Has to be the first method to be called
-	//$mig->rename(["test1", "test2"]);
+    // Rename: IF table name is "test" or "test1" then it will be renamed to "test2".
+    // Has to be the first method to be called
+    //$mig->rename(["test1", "test2"]);
 
-	// Will create new stuff and alter current stuff
-	$mig->auto();
+    // Will create new stuff and alter current stuff
+    $mig->auto();
 
-	// Only create table
-	//$mig->create();
+    // Only create table
+    //$mig->create();
 
-	// Only alter table
-	//$mig->alter();
+    // Only alter table
+    //$mig->alter();
 
-	// Only drop table
-	//$mig->drop();
+    // Only drop table
+    //$mig->drop();
 
-	// Add/alter columns
-	$result = $mig->column("id", [
-	    "type" => "int",
-	    "length" => 11,
-	    "attr" => "unsigned",
-	    "index" => "primary",
-	    "ai" => true
+    // Add/alter columns
+    $result = $mig->column("id", [
+        "type" => "int",
+        "length" => 11,
+        "attr" => "unsigned",
+        "index" => "primary",
+        "ai" => true
 
-	])->column("testKey", [
-	    // Drop: Will drop the column
-	    "drop" => true,
-	    "type" => "int",
-	    "length" => 11,
-	    "index" => "index",
-	    "attr" => "unsigned",
-	    "default" => "0"
+    ])->column("testKey", [
+        // Drop: Will drop the column
+        "drop" => true,
+        "type" => "int",
+        "length" => 11,
+        "index" => "index",
+        "attr" => "unsigned",
+        "default" => "0"
 
-	])->column("name", [
-	    "type" => "varchar",
-	    "length" => 200,
-	    "collate" => true,
-	    "default" => ""
+    ])->column("name", [
+        "type" => "varchar",
+        "length" => 200,
+        "collate" => true,
+        "default" => ""
 
-	])->column("loremname_1", [
-	    // Rename: IF old column name is "loremname_1" or "loremname_2" then it will be renamed to "permalink"
-	    "rename" => ["loremname_2", "permalink"],
-	    "type" => "varchar",
-	    "index" => "index",
-	    "length" => 200,
-	    "collate" => true
+    ])->column("loremname_1", [
+        // Rename: IF old column name is "loremname_1" or "loremname_2" then it will be renamed to "permalink"
+        "rename" => ["loremname_2", "permalink"],
+        "type" => "varchar",
+        "index" => "index",
+        "length" => 200,
+        "collate" => true
 
-	]);
+    ]);
 
-	// Will execute migration
-	$mig->execute();
+    // Will execute migration
+    $mig->execute();
 
-	// Get migration in SQL string (CAN be called before @execute);
-	echo "<pre>";
-	print_r($mig->build());
-	echo "</pre>";
+    // Get migration in SQL string (CAN be called before @execute);
+    echo "<pre>";
+    print_r($mig->build());
+    echo "</pre>";
 */
-
 
 namespace PHPFuse\Query;
 
 use PHPFuse\Query\Exceptions\QueryCreateException;
 
-class Create {
-
-	private $_sql;
-	private $_add;
-	private $_addArr = array();
-	private $_prefix;
-	private $_type;
-	private $_args;
-	private $_table;
-	private $_tableText;
-	private $_col;
-	private $_prev;
-	private $_charset;
-	private $_engine;
-	private $_rowFormat;
-	private $_tbKeys;
-	private $_tbKeysType;
-
-	//private $columnData;
-
-
-	private $_keys = array();
-	private $_ai = array();
-	private $_fk = array();
-	private $_fkList = array();
-	private $_colData = array();
-	private $_rename = array();
-	private $_hasRename = array();
-	
-
-	private $_renameTable = array();
-	private $_primaryKeys = array();
-	private $_dropPrimaryKeys = false;
-
-	private $_build;
-	private $_columns;
-	private $_tableExists;
-
-	CONST ARGS = [
-		"type" => NULL,
-        "length" => NULL,
-        "collate" => NULL,
-        "attr" => NULL,
-        "null" => NULL,
-        "default" => NULL,
-        "index" => NULL,
-        "ai" => NULL,
-        "fk" => NULL,
-        "after" => NULL,
-        "drop" => NULL,
-        "rename" => NULL
-	];
-
-	const COLLATION = "utf8_general_ci";
-	const ATTRIBUTES = ["BINARY", "UNSIGNED", "UNSIGNED ZEROFILL", "on update CURRENT_TIMESTAMP"];
-	const INDEXES = ["PRIMARY", "UNIQUE", "INDEX", "FULLTEXT", "SPATIAL"];
-	const FULLTEXT_COLUMNS = ["CHAR", "VARCHAR", "TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT", "JSON"];
-	const SPATIAL_COLUMNS = ["POINT", "LINESTRING", "POLYGON", "GEOMETRY", "MULTIPOINT", "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION"];
-
-
-	function __construct(string $table, ?string $prefix = NULL) {
-		if(!is_null($this->_prefix)) $this->_prefix = Connect::prep($prefix);
-		$this->_charset = "utf8";
-		$this->_engine = "InnoDB";
-		$this->_rowFormat = "DYNAMIC";
-		$this->_tableText = Connect::prep($table);
-		$this->_table = "{$this->_prefix}{$this->_tableText}";
-	}
-
-	function getTable() {
-		return $this->_table;
-	}
-
-	/**
-	 * Lista all columns set i create/migration
-	 * @return self
-	 */
-	function getColumns() {
-		return $this->_columns;
-	}
-
-	/**
-	 * IF table exists then Alter ELSE Create
-	 * @return self
-	 */
-	function auto() {
-
-		if($this->tableExists($this->_table)) {
-			$this->alter($this->_table);
-		} else {
-			$this->create();
-		}
-
-		return $this;
-	}
-
-	/**
-	 * Create table
-	 * @return self
-	 */
-	function create() {
-		$this->_type = "create";
-		$this->_sql = "CREATE TABLE `{$this->_table}` ";
-		return $this;
-	}
-
-	/**
-	 * Alter table
-	 * @return self
-	 */
-	function alter() {
-		$this->_type = "alter";
-		$this->_sql = "ALTER TABLE `{$this->_table}` ";
-		return $this;
-	}
-
-	/**
-	 * Sets drop table
-	 * @return self
-	 */
-	function drop() {
-		$this->_type = "drop";
-		$this->_sql = "DROP TABLE `{$this->_table}`";
-		return $this;
-	}
-	
-	/**
-	 * Rename: IF table name is "test" or "test1" then it will be renamed to "test2".
-	 * HAS to be the first method to be called
-	 * @param  array  $arr 	["test", "test1", "test2"]: will find table name test or test1 and rename it to test2
-	 * The array argument will act as a history. If you first renamed table to "test1" it might still be named "test" cross domains. 
-	 * Thats is why ever change should persist as a history.
-	 * @return slef
-	 */
-	function rename(array $arr) {
-		if(!is_null($this->_sql)) throw new QueryCreateException("The rename method has to be the FIRST method to be called!", 1);
-		array_unshift($arr, $this->_table);
-
-		$currentTB = false;
-		foreach($arr as $k => $tb) {
-			$tb = ($k !== 0 ? $this->_prefix : NULL).$tb;
-			if($this->tableExists($tb)) {
-				$currentTB = Connect::prep($tb);
-				break;
-			}
-		}
-
-		$newTB = Connect::prep($this->_prefix.end($arr));
-		
-		if($currentTB) {
-			$this->_table = $currentTB;
-			if($currentTB !== $newTB) {
-				$this->_renameTable[$currentTB] = $newTB;
-			}
-		} else {
-			$this->_table = $newTB;
-		}
-
-		return $this;
-	}
-
-	/**
-	 * Generate Dynamic json column fields
-	 * @return string
-	 */
-	function generated() {
-		if(isset($this->_args['generated'])) {
-			$value = explode(",", $this->_args['generated']['columns']);
-			$colArr = array();
-			if(isset($this->_args['generated']['json_columns'])) {
-				foreach($value as $col) {
-					preg_match('#\{{(.*?)\}}#', $col, $match);
-
-					if(isset($match[1])) {
-						$col = trim($match[1]);
-						//$colArr[] = "JSON_EXTRACT(var_data, '$.".$col."')";
-						//JSON_UNQUOTE is required, if skipp it then data will be added with qutes (") 
-						//and all int, floats will become 0 (zero!)
-						$colArr[] = "JSON_UNQUOTE(JSON_EXTRACT(var_data, '$.".$col."'))";
-						
-					} else {
-						$colArr[] = "'{$col}'";
-					}
-					//CONVERT('$.".$col."', UNSIGNED INTEGER)
-				}
-				
-			} else {
-				foreach($value as $col) {
-					preg_match('#\{{(.*?)\}}#', $col, $match);
-					if(isset($match[1])) {
-						$col = trim($match[1]);
-						$colArr[] = "`{$col}`";
-					} else {
-						$colArr[] = "'{$col}'";
-					}		
-				}
-			}
-			if(count($colArr) > 1) {
-				return "GENERATED ALWAYS AS (CONCAT(".implode(",", $colArr)."))";
-			}
-
-			return "GENERATED ALWAYS AS (".implode(",", $colArr).")";
-		}
-
-		return "";
-	}
-	
-
-	/**
-	 * Add diffrent kinds of attributes to column
-	 * @return array
-	 */
-	private function adding() {
-		$arr = array();
-		$methodArr = array("type", "generated", "attributes", "collation", "null", "default");
-		foreach($methodArr as $method) {
-			if($val = $this->{$method}()) $arr[] = $val;
-		}
-		return $arr;
-	}
-
-	/**
-	 * Add primary keys
-	 * @param  array  $colArr [description]
-	 * @return [type]         [description]
-	 */
-	public function primary(array $colArr): self 
-	{
-		$colArr = $this->clean($colArr);
-		$this->_primaryKeys = array_merge($this->_primaryKeys, $colArr);
-		return $this;
-	}
-
-
-	public function clean($value): string|array 
-	{
-		if(is_array($value)) {
-			return array_map([$this, 'clean'], $value);
-		} else {
-			$value = preg_replace("/[^a-zA-Z0-9_]/", "", $value);
-			$value = trim($value);
-		}
-		return $value;
-	}
-
-	/**
-	 * Drop the primary key
-	 * @return self
-	 */
-	function primaryDrop() {
-		$this->_dropPrimaryKeys = true;
-		return $this;
-	}
-
-	/**
-	 * Alias: Drop the primary key
-	 * @return self
-	 */
-	function dropPrimary() {
-		return $this->primaryDrop();
-	}
-
-	/**
-	 * Prepare column with all the right arguments, indexs, keys and so on
-	 * @param  string $col Column name
-	 * @param  array  $arr Column arguments
-	 * @return self
-	 */
-	function column(string $col, array $arr) {
-		$this->_columns[$col] = $arr;
-		return $this;
-	}
-
-	private function processColumnData() {
-
-		foreach($this->_columns as $col => $arr) {
-			$col = Connect::prep($col);
-			$this->_args = array_merge($this::ARGS, $arr);
-
-			$this->_hasRename = NULL;
-			if($hasRename = $this->hasRename()) {
-				$this->_hasRename[$col] = $hasRename;
-				if(!$this->columnExists($this->_table, $col)) {
-					foreach($hasRename as $k) {
-						if($this->columnExists($this->_table, $k)) {
-							$col = Connect::prep($k);
-							break;
-						}
-					}
-				}
-			}
-
-			//$this->_columns[$col] = $arr;
-			$this->_col = $col;
-			$this->_add[$col] = "";
-			$this->_addArr = $this->adding();
-
-			$attr = implode(" ", $this->_addArr);
-
-			if($index = $this->index()) $this->_keys[$col] = $index;
-			if($ai = $this->ai()) $this->_ai[$col] = ["type" => $this->type(), "value" => $ai];
-			if($rename = $this->renameColumn()) $this->_rename[$col] = $rename;
-			if($fk = $this->fk()) {
-				$this->_fkList = $this->fkExists($this->_table, $col);
-				$this->_fk[$col] = $fk; 
-			}
-
-			if($this->_type === "alter") {
-				if($result = $this->columnExists($this->_table, $col)) {
-					
-					if($drop = $this->dropColumn()) {
-						$this->_add[$col] .= "{$drop} `{$col}`";
-						if(isset($this->_keys[$col])) unset($this->_keys[$col]);
-						if(isset($this->_ai[$col])) unset($this->_ai[$col]);
-
-					} else {
-						$this->_colData[$col] = $result->fetch_object();
-						$this->_add[$col] .= "MODIFY `{$col}` {$attr}";
-					}
-
-				} else {
-					if($drop = $this->dropColumn()) {
-						if(isset($this->_keys[$col])) unset($this->_keys[$col]);
-						if(isset($this->_ai[$col])) unset($this->_ai[$col]);
-
-					} else {
-						if(is_null($this->hasRename())) {
-							$this->_add[$col] .= "ADD COLUMN `{$col}` {$attr}";
-							if(!is_null($this->_prev)) {
-								$this->_add[$col] .= " AFTER `".$this->after()."`";
-							}
-						}
-					}	
-				}
-
-			} else {
-				$this->_add[$col] .= "`{$col}` {$attr}";	
-			}
-
-			$this->_add[$col] = trim($this->_add[$col]);
-			$this->_prev = $col;
-		}
-	}
-
-	/**
-	 * Sets Primary key
-	 */
-	private function _setPrimary() {
-		if(count($this->_primaryKeys) > 0) {
-
-			if($keys = $this->_tbKeys()) $this->_add[] = "DROP PRIMARY KEY";
-
-
-			$this->_primaryKeys = array_unique($this->_primaryKeys);
-			$imp = implode(",", $this->_mysqlCleanArr($this->_primaryKeys));
-
-			if($this->_type === "create") {
-				$this->_add[] = "PRIMARY KEY({$imp})";
-			} else {
-				$this->_add[] = "ADD PRIMARY KEY({$imp})";
-			}
-		}
-	}
-	
-	/**
-	 * Build SQL code
-	 * @return string
-	 */
-	function build() {
-
-		$this->processColumnData();
-		
-		if(is_array($this->_add)) {
-			$this->_add = array_filter($this->_add);
-		}
-
-		if(is_null($this->_build)) {
-
-			// Might add to primary
-			$keyStr = $this->_buildKeys();
-
-			$this->_setPrimary();
-
-
-
-			if($this->_type === "drop") {
-				$this->_build = "{$this->_sql};";
-
-			} else {
-				$this->_build = "START TRANSACTION;\n\n";
-				$this->_build .= "SET FOREIGN_KEY_CHECKS=0;\n";
-				$this->_build .= $this->_sql."\n";
-				switch($this->_type) {
-					case "create":
-						$this->_build .= "(".implode(",\n ", $this->_add).") ENGINE={$this->_engine} DEFAULT CHARSET={$this->_charset} ROW_FORMAT={$this->_rowFormat};";
-					break;
-					case "alter":
-						$this->_build .= "".implode(",\n ", $this->_add).";";
-					break;
-				}
-
-				$this->_build .= "\n\n";
-				if($keyStr) $this->_build .= "{$keyStr}\n\n";
-				if($aiStr = $this->_buildAI()) $this->_build .= "{$aiStr}\n\n";
-				if($renameStr = $this->_buildRename()) $this->_build .= "{$renameStr}\n\n";
-				if($fkStr = $this->_buildFK()) $this->_build .= "{$fkStr}\n\n";
-
-				if(count($this->_renameTable) > 0) {
-					$new = reset($this->_renameTable);
-					$current = key($this->_renameTable);
-					$this->_build .= "RENAME TABLE `{$current}` TO `{$new}`;\n\n";
-				}
-
-				$this->_build .= "SET FOREIGN_KEY_CHECKS=1;\n\n";
-				$this->_build .= "COMMIT;";
-
-			}
-		}
-
-		return $this->_build;
-	}
-
-	/**
-	 * Execute
-	 * @return array errors.
-	 */
-	function execute() {
-		$sql = $this->build();
-		$error = Connect::multiQuery($sql, $mysqli);
-		return $error;
-	}
-
-	function _mysqlCleanArr(array $arr) {
-		$new = array();
-		foreach($arr as $a) $new[] = Connect::prep($a);
-		return $new;
-	}
-
-	/**
-	 * Index lookup
-	 * @return int|effected rows
-	 */
-	private function _tbKeys(): array {
-		if(is_null($this->_tbKeys)) {
-			$this->_tbKeysType = $this->_tbKeys = array();
-			if($this->tableExists($this->_table)) {
-				$result = Connect::query("SHOW INDEXES FROM {$this->_table}");
-				if($result && $result->num_rows > 0) {
-					while ($row = $result->fetch_object()) {
-						$type = ($row->Index_type === "FULLTEXT" || $row->Index_type === "SPATIAL") ? $row->Index_type : "INDEX";
-						$type = ($row->Key_name === "PRIMARY") ? $row->Key_name : (((int)$row->Non_unique === 0) ? "UNIQUE" : $type);
-						$this->_tbKeys[$row->Column_name][] = $row->Key_name;
-						$this->_tbKeysType[$row->Column_name][] = $type;
-
-
-						
-					}
-				}
-			}
-		}
-
-		return $this->_tbKeys;
-	}
-
-	function tbKeysType() {
-		if(is_null($this->_tbKeysType)) $this->_tbKeys();
-		return $this->_tbKeysType;
-	}
-	
-	/**
-	 * Drop column
-	 * @return string
-	 */
-	function dropColumn() {
-		return (!is_null($this->_args['drop']) && $this->_args['drop'] === true) ? "DROP COLUMN" : NULL;
-	}
-
-	/**
-	 * Add column after
-	 * @return string
-	 */
-	function after() {
-		return (!is_null($this->_args['after'])) ? $this->_args['after'] : $this->_prev;
-	}
-
-	/**
-	 * Will rename column
-	 * @return string
-	 */
-	function renameColumn() {
-		if($rename = $this->hasRename()) {
-			$rename = end($rename);
-			if(!$this->columnExists($this->_table, $rename)) {
-				return $rename;
-			}
-		}
-		return NULL;
-	}
-
-	function hasRename() {
-		return (!is_null($this->_args['rename'])) ? $this->_args['rename'] : NULL;
-	}
-
-	/**
-	 * Sets AI
-	 * @return string
-	 */
-	function ai() {
-		$ai = (!is_null($this->_args['ai']) && $this->_args['ai'] !== false) ? "AUTO_INCREMENT" : NULL;
-		if($ai) {
-			$i = (int)$this->_args['ai'];
-			if($i > 1) $ai .= ", AUTO_INCREMENT={$i}";
-		}
-
-		return $ai;
-	}
-
-	//Foreign key
-	function fk() {
-		return (is_array($this->_args['fk'])) ? $this->_args['fk'] : NULL;
-	}
-
-	/**
-	 * Sets column type
-	 * @return string
-	 */
-	function type() {
-		return strtoupper($this->_args['type']).(!is_null($this->_args['length']) ? "({$this->_args['length']})" : NULL);
-	}
-
-	/**
-	 * Sets character and text collation
-	 * @return [type] [description]
-	 */
-	function collation() {
-		if($this->_args['collate']) {
-			if($this->_args['collate'] === true) $this->_args['collate'] = $this::COLLATION;
-			return "CHARACTER SET ".Connect::prep($this->_charset)." COLLATE ".Connect::prep($this->_args['collate'])."";
-		}
-		return NULL;
-	}
-
-	/**
-	 * Sets NULL
-	 * @return string
-	 */
-	function null() {
-		return ($this->_args['null']) ? NULL : "NOT NULL";
-	}
-
-	/**
-	 * Sets default value
-	 * @return string
-	 */
-	function default() {
-		return (!is_null($this->_args['default']) && $this->_args['default'] !== false) ? "DEFAULT '".Connect::prep($this->_args['default'])."'" : NULL;
-	}
-
-	/**
-	 * Sets Mysql Attributes
-	 * @return string
-	 */
-	function attributes() {
-		if(!is_null($this->_args['attr'])) {
-			$this->_args['attr'] = strtoupper($this->_args['attr']);
-			if(!in_array($this->_args['attr'], $this::ATTRIBUTES)) {
-				throw new QueryCreateException("The attribute \"{$this->_args['attr']}\" does not exist", 1);
-			}
-			return Connect::prep($this->_args['attr']);
-		}
-
-		return NULL;
-	}
-
-	/**
-	 * Sets index
-	 * @return string
-	 */
-	function index() {
-		if(!is_null($this->_args['index'])) {
-			if($this->_args['index'] !== 0) {
-				$this->_args['index'] = strtoupper($this->_args['index']);
-				$this->_args['type'] = strtoupper($this->_args['type']);
-				if(!in_array($this->_args['index'], $this::INDEXES)) {
-					throw new QueryCreateException("The attribute \"{$this->_args['index']}\" does not exist", 1);
-				}
-
-				if($this->_args['index'] === "FULLTEXT" && !in_array($this->_args['type'], static::FULLTEXT_COLUMNS)) {
-					throw new QueryCreateException("You can ony have \"{$this->_args['index']}\" index on column types (".implode(", ", static::FULLTEXT_COLUMNS)."), you have \"{$this->_args['type']}\".", 1);
-				}
-
-				if($this->_args['index'] === "SPATIAL" && !in_array($this->_args['type'], static::SPATIAL_COLUMNS)) {
-					throw new QueryCreateException("You can ony have \"{$this->_args['index']}\" index on column types (".implode(", ", static::FULLTEXT_COLUMNS)."), you have \"{$this->_args['type']}\".", 1);
-				}
-				return Connect::prep($this->_args['index']);
-			}
-		}
-		return NULL;
-	}
-
-	/**
-	 * Build the foreign key
-	 * The foreign key name must be unique across the database, becouse of the name reflect make it unique
-	 * @return string
-	 */
-	private function _buildFK() {
-		$sql = "";
-		if(count($this->_fk) > 0) {
-			
-			foreach($this->_fk as $col =>  $array) {
-				foreach($array as $arr) {
-
-					$arr['table'] = (isset($arr['table']) && (bool)$arr['table']) ? $arr['table'] : "";
-					$arr['update'] = $this->_fkSwitch($arr['update']);
-					$arr['delete'] = $this->_fkSwitch($arr['delete']);
-
-					// This is Foreign key constraint name found in query search.
-					$fkNameA = "fk_{$this->_prefix}{$arr['table']}_{$this->_tableText}_{$arr['column']}";
-					$fkRow = ($this->_fkList[$fkNameA] ?? NULL);
-					$fkKey = ($fkRow->CONSTRAINT_NAME ?? NULL);
-
-					if(isset($arr['drop']) && $arr['drop'] === true) {
-						if(!is_null($fkKey)) $sql .= "ALTER TABLE `{$this->_table}` DROP FOREIGN KEY `{$fkKey}`;";
-
-					} else {
-						if(!is_null($fkKey)) {
-							$sql .= "ALTER TABLE `{$this->_table}` DROP FOREIGN KEY `{$fkKey}`;\n\n";
-							unset($this->_fkList[$fkKey]);
-						}
-
-						$sql .= "ALTER TABLE `{$this->_table}`\n ";
-						$sql .= "ADD CONSTRAINT `{$fkNameA}`\n ";
-						$sql .= "FOREIGN KEY (`{$col}`)\n ";
-						$sql .= "REFERENCES `{$this->_prefix}{$arr['table']}`(`{$arr['column']}`)\n ";
-						$sql .= "ON DELETE {$arr['delete']}\n ";
-						$sql .= "ON UPDATE {$arr['update']};\n ";
-
-						if(count($this->_fkList) > 0) {
-							foreach($this->_fkList as $key => $row) {
-								$sql .= "\nALTER TABLE `{$this->_table}` DROP FOREIGN KEY `{$key}`;\n\n";
-							}
-						}
-					}
-				}
-			}
-		}
-		
-		return $sql;
-	}
-
-	private function _fkSwitch($val) {
-		$val = strtoupper($val);
-		switch($val) {
-			case 'CASCADE':
-				return $val;
-			break;
-			case 'SET_NULL':
-				return "SET NULL";
-			break;
-			case 'NO_ACTION':
-				return "NO ACTION";
-			break;
-			case 'RESTRICT':
-				return $val;
-			break;
-		}
-
-		return NULL;
-	}
-
-	/**
-	 * Build key sql output
-	 * @return string
-	 */
-	private function _buildKeys(): string 
-	{
-
-		$sql = "";
-		$tbKeys = $this->_tbKeys();
-		$prepareDrop = $this->tbKeysType();
-
-		if(count($this->_keys) > 0) {
-			$sqlKeyArr = array();
-			foreach($this->_keys as $col => $key) {
-				$col = Connect::prep($col);
-				$key = strtoupper(Connect::prep($key));
-
-				// Prepare DROP
-				if(isset($prepareDrop[$col]) && ($index = array_search($key, $prepareDrop[$col])) !== false) {
-					unset($prepareDrop[$col][$index]);
-				}
-
-				// Prepare ADD
-				if(empty($this->_colData[$col]) || !(bool)$this->_colData[$col]->Key) switch($key) {
-					case 'INDEX':
-						$sqlKeyArr[] = "ADD INDEX `{$col}` (`{$col}`)";
-
-					break;
-					case 'PRIMARY':
-						$this->primary([$col]);
-					break;
-					default:
-						$sqlKeyArr[] = "ADD {$key} INDEX `{$col}` (`{$col}`)";
-					break;
-				}		
-			}
-
-			// DROP Possible keys
-			if(count($prepareDrop) > 0) {
-				foreach($prepareDrop as $a => $arr) {
-					if(($index = array_search("PRIMARY", $arr)) !== false) unset($arr[$index]);
-					if(count($arr) > 0) foreach ($tbKeys[$a] as $b => $col) {
-						$sqlKeyArr[] = "DROP INDEX `{$col}`";
-					}
-				}
-			}
-
-			// Build alter tabel keys 
-			if(count($sqlKeyArr) > 0) {
-				$sql = "ALTER TABLE `{$this->_table}`\n ".implode(",\n", $sqlKeyArr).";";
-			}
-		}
-
-		return $sql;
-	}
-
-
-	static function _createDatabase($host, $user, $pass, $database) {
-
-		$conn = new \mysqli($host, $user, $pass);
-		if($conn->connect_error) die("Connection failed: " . $conn->connect_error);
-		
- 		if($result = $conn->query("CREATE DATABASE IF NOT EXISTS `{$database}`")) {
-			return $result;	
-		} else {
-			throw new \Exception($conn->error, 1);
-		}
-
-		$conn->close();
-
-	}
-
-	private function _buildAI() {
-		$sql = "";
-		if(count($this->_ai) > 0) {
-			foreach($this->_ai as $col => $a) {
-				//if(empty($this->_colData[$col]) || strpos($this->_colData[$col]->Extra, "auto_increment") === false) {
-					$sql .= "ALTER TABLE `{$this->_table}` MODIFY `{$col}` {$a['type']} UNSIGNED NOT NULL {$a['value']};";
-				//}	
-			}
-		}
-		return $sql;
-	}
-
-	private function _buildRename() {
-		$sql = "";
-		if(count($this->_rename) > 0) {
-			foreach($this->_rename as $col => $newCol) {
-				$sql .= "ALTER TABLE `{$this->_table}` CHANGE `{$col}` `{$newCol}` ".$this->type().";\n";
-			}
-		}
-		return $sql;
-	}
-
-	function fkExists(string $table, string $col) {
-		$table = Connect::prep($table);
-		$col = Connect::prep($col);
-		$dbName = Connect::inst()->getDBName();
-		$result = Connect::query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '{$dbName}' AND TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
-
-		$arr = array();
-		if($result && $result->num_rows > 0) while($row = $result->fetch_object()) {
-			$arr[$row->CONSTRAINT_NAME] = $row;
-		}
- 		return $arr;
-
-	}
-
-	function tableExists(string $table = NULL) {
-		if(is_null($this->_tableExists)) {
-			$this->_tableExists = false;
-			if(is_null($table)) $table = $this->_table;
-			$table = Connect::prep($table);
-	 		$result = Connect::query("SHOW TABLES LIKE '{$table}'");
-	 		if($result && $result->num_rows > 0) {
-	 			$this->_tableExists = $result;
-	 		}
- 		}
- 		return $this->_tableExists;
-	}
-
-	function columnExists(string $table, string $col) {
-		if($this->tableExists($table)) {
-			$table = Connect::prep($table);
-			$col = Connect::prep($col);
-	 		$result = Connect::query("SHOW COLUMNS FROM {$table} LIKE '{$col}'");
-	 		if($result && $result->num_rows > 0) {
-	 			return $result;
-	 		}
- 		}
- 		return false;
-	}
-
+class Create
+{
+    private $sql;
+    private $add;
+    private $addArr = array();
+    private $prefix;
+    private $type;
+    private $args;
+    private $table;
+    private $tableText;
+    private $col;
+    private $prev;
+    private $charset;
+    private $engine;
+    private $rowFormat;
+    private $tbKeys;
+    private $tbKeysType;
+
+    //private $columnData;
+
+
+    private $keys = array();
+    private $ai = array();
+    private $fk = array();
+    private $fkList = array();
+    private $colData = array();
+    private $rename = array();
+    private $hasRename = array();
+
+
+    private $renameTable = array();
+    private $primaryKeys = array();
+    private $dropPrimaryKeys = false;
+
+    private $build;
+    private $columns;
+    private $tableExists;
+
+    public const ARGS = [
+        "type" => null,
+        "length" => null,
+        "collate" => null,
+        "attr" => null,
+        "null" => null,
+        "default" => null,
+        "index" => null,
+        "ai" => null,
+        "fk" => null,
+        "after" => null,
+        "drop" => null,
+        "rename" => null
+    ];
+
+    public const COLLATION = "utf8_general_ci";
+    public const ATTRIBUTES = ["BINARY", "UNSIGNED", "UNSIGNED ZEROFILL", "on update CURRENT_TIMESTAMP"];
+    public const INDEXES = ["PRIMARY", "UNIQUE", "INDEX", "FULLTEXT", "SPATIAL"];
+    public const FULLTEXT_COLUMNS = ["CHAR", "VARCHAR", "TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT", "JSON"];
+    public const SPATIAL_COLUMNS = ["POINT", "LINESTRING", "POLYGON", "GEOMETRY", "MULTIPOINT",
+    "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION"];
+
+
+    public function __construct(string $table, ?string $prefix = null)
+    {
+        if (!is_null($this->prefix)) {
+            $this->prefix = Connect::prep($prefix);
+        }
+        $this->charset = "utf8";
+        $this->engine = "InnoDB";
+        $this->rowFormat = "DYNAMIC";
+        $this->tableText = Connect::prep($table);
+        $this->table = "{$this->prefix}{$this->tableText}";
+    }
+
+    public function getTable()
+    {
+        return $this->table;
+    }
+
+    /**
+     * Lista all columns set i create/migration
+     * @return self
+     */
+    public function getColumns()
+    {
+        return $this->columns;
+    }
+
+    /**
+     * IF table exists then Alter ELSE Create
+     * @return self
+     */
+    public function auto()
+    {
+
+        if ($this->tableExists($this->table)) {
+            $this->alter($this->table);
+        } else {
+            $this->create();
+        }
+
+        return $this;
+    }
+
+    /**
+     * Create table
+     * @return self
+     */
+    public function create()
+    {
+        $this->type = "create";
+        $this->sql = "CREATE TABLE `{$this->table}` ";
+        return $this;
+    }
+
+    /**
+     * Alter table
+     * @return self
+     */
+    public function alter()
+    {
+        $this->type = "alter";
+        $this->sql = "ALTER TABLE `{$this->table}` ";
+        return $this;
+    }
+
+    /**
+     * Sets drop table
+     * @return self
+     */
+    public function drop()
+    {
+        $this->type = "drop";
+        $this->sql = "DROP TABLE `{$this->table}`";
+        return $this;
+    }
+
+    /**
+     * Rename: IF table name is "test" or "test1" then it will be renamed to "test2".
+     * HAS to be the first method to be called
+     * @param  array  $arr  ["test", "test1", "test2"]: will find table name test
+     * or test1 and rename it to test2
+     * The array argument will act as a history. If you first renamed table to
+     * "test1" it might still be named "test" cross domains.
+     * Thats is why ever change should persist as a history.
+     * @return slef
+     */
+    public function rename(array $arr)
+    {
+        if (!is_null($this->sql)) {
+            throw new QueryCreateException("The rename method has to be the FIRST method to be called!", 1);
+        }
+        array_unshift($arr, $this->table);
+
+        $currentTB = false;
+        foreach ($arr as $k => $tb) {
+            $tb = ($k !== 0 ? $this->prefix : null).$tb;
+            if ($this->tableExists($tb)) {
+                $currentTB = Connect::prep($tb);
+                break;
+            }
+        }
+
+        $newTB = Connect::prep($this->prefix.end($arr));
+
+        if ($currentTB) {
+            $this->table = $currentTB;
+            if ($currentTB !== $newTB) {
+                $this->renameTable[$currentTB] = $newTB;
+            }
+        } else {
+            $this->table = $newTB;
+        }
+
+        return $this;
+    }
+
+    /**
+     * Generate Dynamic json column fields
+     * @return string
+     */
+    public function generated()
+    {
+        if (isset($this->args['generated'])) {
+            $value = explode(",", $this->args['generated']['columns']);
+            $colArr = array();
+            if (isset($this->args['generated']['json_columns'])) {
+                foreach ($value as $col) {
+                    preg_match('#\{{(.*?)\}}#', $col, $match);
+
+                    if (isset($match[1])) {
+                        $col = trim($match[1]);
+                        //$colArr[] = "JSON_EXTRACT(var_data, '$.".$col."')";
+                        //JSON_UNQUOTE is required, if skipp it then data will be added with qutes (")
+                        //and all int, floats will become 0 (zero!)
+                        $colArr[] = "JSON_UNQUOTE(JSON_EXTRACT(var_data, '$.".$col."'))";
+                    } else {
+                        $colArr[] = "'{$col}'";
+                    }
+                    //CONVERT('$.".$col."', UNSIGNED INTEGER)
+                }
+            } else {
+                foreach ($value as $col) {
+                    preg_match('#\{{(.*?)\}}#', $col, $match);
+                    if (isset($match[1])) {
+                        $col = trim($match[1]);
+                        $colArr[] = "`{$col}`";
+                    } else {
+                        $colArr[] = "'{$col}'";
+                    }
+                }
+            }
+            if (count($colArr) > 1) {
+                return "GENERATED ALWAYS AS (CONCAT(".implode(",", $colArr)."))";
+            }
+
+            return "GENERATED ALWAYS AS (".implode(",", $colArr).")";
+        }
+
+        return "";
+    }
+
+
+    /**
+     * Add diffrent kinds of attributes to column
+     * @return array
+     */
+    private function adding()
+    {
+        $arr = array();
+        $methodArr = array("type", "generated", "attributes", "collation", "null", "default");
+        foreach ($methodArr as $method) {
+            if ($val = $this->{$method}()) {
+                $arr[] = $val;
+            }
+        }
+        return $arr;
+    }
+
+    /**
+     * Add primary keys
+     * @param  array  $colArr [description]
+     * @return [type]         [description]
+     */
+    public function primary(array $colArr): self
+    {
+        $colArr = $this->clean($colArr);
+        $this->primaryKeys = array_merge($this->primaryKeys, $colArr);
+        return $this;
+    }
+
+
+    public function clean($value): string|array
+    {
+        if (is_array($value)) {
+            return array_map([$this, 'clean'], $value);
+        } else {
+            $value = preg_replace("/[^a-zA-Z0-9_]/", "", $value);
+            $value = trim($value);
+        }
+        return $value;
+    }
+
+    /**
+     * Drop the primary key
+     * @return self
+     */
+    public function primaryDrop()
+    {
+        $this->dropPrimaryKeys = true;
+        return $this;
+    }
+
+    /**
+     * Alias: Drop the primary key
+     * @return self
+     */
+    public function dropPrimary()
+    {
+        return $this->primaryDrop();
+    }
+
+    /**
+     * Prepare column with all the right arguments, indexs, keys and so on
+     * @param  string $col Column name
+     * @param  array  $arr Column arguments
+     * @return self
+     */
+    public function column(string $col, array $arr)
+    {
+        $this->columns[$col] = $arr;
+        return $this;
+    }
+
+    private function processColumnData()
+    {
+
+        foreach ($this->columns as $col => $arr) {
+            $col = Connect::prep($col);
+            $this->args = array_merge($this::ARGS, $arr);
+
+            $this->hasRename = null;
+            if ($hasRename = $this->hasRename()) {
+                $this->hasRename[$col] = $hasRename;
+                if (!$this->columnExists($this->table, $col)) {
+                    foreach ($hasRename as $k) {
+                        if ($this->columnExists($this->table, $k)) {
+                            $col = Connect::prep($k);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            //$this->columns[$col] = $arr;
+            $this->col = $col;
+            $this->add[$col] = "";
+            $this->addArr = $this->adding();
+
+            $attr = implode(" ", $this->addArr);
+
+            if ($index = $this->index()) {
+                $this->keys[$col] = $index;
+            }
+            if ($ai = $this->ai()) {
+                $this->ai[$col] = ["type" => $this->type(), "value" => $ai];
+            }
+            if ($rename = $this->renameColumn()) {
+                $this->rename[$col] = $rename;
+            }
+            if ($fk = $this->fk()) {
+                $this->fkList = $this->fkExists($this->table, $col);
+                $this->fk[$col] = $fk;
+            }
+
+            if ($this->type === "alter") {
+                if ($result = $this->columnExists($this->table, $col)) {
+                    if ($drop = $this->dropColumn()) {
+                        $this->add[$col] .= "{$drop} `{$col}`";
+                        if (isset($this->keys[$col])) {
+                            unset($this->keys[$col]);
+                        }
+                        if (isset($this->ai[$col])) {
+                            unset($this->ai[$col]);
+                        }
+                    } else {
+                        $this->colData[$col] = $result->fetch_object();
+                        $this->add[$col] .= "MODIFY `{$col}` {$attr}";
+                    }
+                } else {
+                    if ($drop = $this->dropColumn()) {
+                        if (isset($this->keys[$col])) {
+                            unset($this->keys[$col]);
+                        }
+                        if (isset($this->ai[$col])) {
+                            unset($this->ai[$col]);
+                        }
+                    } else {
+                        if (is_null($this->hasRename())) {
+                            $this->add[$col] .= "ADD COLUMN `{$col}` {$attr}";
+                            if (!is_null($this->prev)) {
+                                $this->add[$col] .= " AFTER `".$this->after()."`";
+                            }
+                        }
+                    }
+                }
+            } else {
+                $this->add[$col] .= "`{$col}` {$attr}";
+            }
+
+            $this->add[$col] = trim($this->add[$col]);
+            $this->prev = $col;
+        }
+    }
+
+    /**
+     * Sets Primary key
+     */
+    private function setPrimary()
+    {
+        if (count($this->primaryKeys) > 0) {
+            if ($keys = $this->tbKeys()) {
+                $this->add[] = "DROP PRIMARY KEY";
+            }
+
+
+            $this->primaryKeys = array_unique($this->primaryKeys);
+            $imp = implode(",", $this->mysqlCleanArr($this->primaryKeys));
+
+            if ($this->type === "create") {
+                $this->add[] = "PRIMARY KEY({$imp})";
+            } else {
+                $this->add[] = "ADD PRIMARY KEY({$imp})";
+            }
+        }
+    }
+
+    /**
+     * Build SQL code
+     * @return string
+     */
+    public function build()
+    {
+
+        $this->processColumnData();
+
+        if (is_array($this->add)) {
+            $this->add = array_filter($this->add);
+        }
+
+        if (is_null($this->build)) {
+            // Might add to primary
+            $keyStr = $this->buildKeys();
+
+            $this->setPrimary();
+
+
+
+            if ($this->type === "drop") {
+                $this->build = "{$this->sql};";
+            } else {
+                $this->build = "START TRANSACTION;\n\n";
+                $this->build .= "SET FOREIGN_KEY_CHECKS=0;\n";
+                $this->build .= $this->sql."\n";
+                switch ($this->type) {
+                    case "create":
+                        $this->build .= "(".implode(",\n ", $this->add).") ENGINE={$this->engine} DEFAULT ".
+                        "CHARSET={$this->charset} ROW_FORMAT={$this->rowFormat};";
+                        break;
+                    case "alter":
+                        $this->build .= "".implode(",\n ", $this->add).";";
+                        break;
+                }
+
+                $this->build .= "\n\n";
+                if ($keyStr) {
+                    $this->build .= "{$keyStr}\n\n";
+                }
+                if ($aiStr = $this->buildAI()) {
+                    $this->build .= "{$aiStr}\n\n";
+                }
+                if ($renameStr = $this->buildRename()) {
+                    $this->build .= "{$renameStr}\n\n";
+                }
+                if ($fkStr = $this->buildFK()) {
+                    $this->build .= "{$fkStr}\n\n";
+                }
+
+                if (count($this->renameTable) > 0) {
+                    $new = reset($this->renameTable);
+                    $current = key($this->renameTable);
+                    $this->build .= "RENAME TABLE `{$current}` TO `{$new}`;\n\n";
+                }
+
+                $this->build .= "SET FOREIGN_KEY_CHECKS=1;\n\n";
+                $this->build .= "COMMIT;";
+            }
+        }
+
+        return $this->build;
+    }
+
+    /**
+     * Execute
+     * @return array errors.
+     */
+    public function execute()
+    {
+        $sql = $this->build();
+        $error = Connect::multiQuery($sql, $mysqli);
+        return $error;
+    }
+
+    public function mysqlCleanArr(array $arr)
+    {
+        $new = array();
+        foreach ($arr as $a) {
+            $new[] = Connect::prep($a);
+        }
+        return $new;
+    }
+
+    /**
+     * Index lookup
+     * @return int|effected rows
+     */
+    private function tbKeys(): array
+    {
+        if (is_null($this->tbKeys)) {
+            $this->tbKeysType = $this->tbKeys = array();
+            if ($this->tableExists($this->table)) {
+                $result = Connect::query("SHOW INDEXES FROM {$this->table}");
+                if ($result && $result->num_rows > 0) {
+                    while ($row = $result->fetch_object()) {
+                        $type = ($row->Index_type === "FULLTEXT" ||
+                            $row->Index_type === "SPATIAL") ? $row->Index_type : "INDEX";
+                        $type = ($row->Key_name === "PRIMARY") ? $row->Key_name :
+                            (((int)$row->Non_unique === 0) ? "UNIQUE" : $type);
+                        $this->tbKeys[$row->Column_name][] = $row->Key_name;
+                        $this->tbKeysType[$row->Column_name][] = $type;
+                    }
+                }
+            }
+        }
+
+        return $this->tbKeys;
+    }
+
+    public function tbKeysType()
+    {
+        if (is_null($this->tbKeysType)) {
+            $this->tbKeys();
+        }
+        return $this->tbKeysType;
+    }
+
+    /**
+     * Drop column
+     * @return string
+     */
+    public function dropColumn()
+    {
+        return (!is_null($this->args['drop']) && $this->args['drop'] === true) ? "DROP COLUMN" : null;
+    }
+
+    /**
+     * Add column after
+     * @return string
+     */
+    public function after()
+    {
+        return (!is_null($this->args['after'])) ? $this->args['after'] : $this->prev;
+    }
+
+    /**
+     * Will rename column
+     * @return string
+     */
+    public function renameColumn()
+    {
+        if ($rename = $this->hasRename()) {
+            $rename = end($rename);
+            if (!$this->columnExists($this->table, $rename)) {
+                return $rename;
+            }
+        }
+        return null;
+    }
+
+    public function hasRename()
+    {
+        return (!is_null($this->args['rename'])) ? $this->args['rename'] : null;
+    }
+
+    /**
+     * Sets AI
+     * @return string
+     */
+    public function ai()
+    {
+        $ai = (!is_null($this->args['ai']) && $this->args['ai'] !== false) ? "AUTO_INCREMENT" : null;
+        if ($ai) {
+            $i = (int)$this->args['ai'];
+            if ($i > 1) {
+                $ai .= ", AUTO_INCREMENT={$i}";
+            }
+        }
+
+        return $ai;
+    }
+
+    //Foreign key
+    public function fk()
+    {
+        return (is_array($this->args['fk'])) ? $this->args['fk'] : null;
+    }
+
+    /**
+     * Sets column type
+     * @return string
+     */
+    public function type()
+    {
+        return strtoupper($this->args['type']).(!is_null($this->args['length']) ? "({$this->args['length']})" : null);
+    }
+
+    /**
+     * Sets character and text collation
+     * @return [type] [description]
+     */
+    public function collation()
+    {
+        if ($this->args['collate']) {
+            if ($this->args['collate'] === true) {
+                $this->args['collate'] = $this::COLLATION;
+            }
+            return "CHARACTER SET ".Connect::prep($this->charset)." COLLATE ".Connect::prep($this->args['collate'])."";
+        }
+        return null;
+    }
+
+    /**
+     * Sets NULL
+     * @return string
+     */
+    public function null()
+    {
+        return ($this->args['null']) ? null : "NOT NULL";
+    }
+
+    /**
+     * Sets default value
+     * @return string
+     */
+    public function default()
+    {
+        return (!is_null($this->args['default']) && $this->args['default'] !== false) ? "DEFAULT '".
+        Connect::prep($this->args['default'])."'" : null;
+    }
+
+    /**
+     * Sets Mysql Attributes
+     * @return string
+     */
+    public function attributes()
+    {
+        if (!is_null($this->args['attr'])) {
+            $this->args['attr'] = strtoupper($this->args['attr']);
+            if (!in_array($this->args['attr'], $this::ATTRIBUTES)) {
+                throw new QueryCreateException("The attribute \"{$this->args['attr']}\" does not exist", 1);
+            }
+            return Connect::prep($this->args['attr']);
+        }
+
+        return null;
+    }
+
+    /**
+     * Sets index
+     * @return string
+     */
+    public function index()
+    {
+        if (!is_null($this->args['index'])) {
+            if ($this->args['index'] !== 0) {
+                $this->args['index'] = strtoupper($this->args['index']);
+                $this->args['type'] = strtoupper($this->args['type']);
+                if (!in_array($this->args['index'], $this::INDEXES)) {
+                    throw new QueryCreateException("The attribute \"{$this->args['index']}\" does not exist", 1);
+                }
+
+                if ($this->args['index'] === "FULLTEXT" && !in_array($this->args['type'], static::FULLTEXT_COLUMNS)) {
+                    throw new QueryCreateException("You can ony have \"{$this->args['index']}\" index on column ".
+                        "types (".implode(", ", static::FULLTEXT_COLUMNS)."), you have \"{$this->args['type']}\".", 1);
+                }
+
+                if ($this->args['index'] === "SPATIAL" && !in_array($this->args['type'], static::SPATIAL_COLUMNS)) {
+                    throw new QueryCreateException("You can ony have \"{$this->args['index']}\" index on column types ".
+                        "(".implode(", ", static::FULLTEXT_COLUMNS)."), you have \"{$this->args['type']}\".", 1);
+                }
+                return Connect::prep($this->args['index']);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Build the foreign key
+     * The foreign key name must be unique across the database, becouse of the name reflect make it unique
+     * @return string
+     */
+    private function buildFK()
+    {
+        $sql = "";
+        if (count($this->fk) > 0) {
+            foreach ($this->fk as $col => $array) {
+                foreach ($array as $arr) {
+                    $arr['table'] = (isset($arr['table']) && (bool)$arr['table']) ? $arr['table'] : "";
+                    $arr['update'] = $this->fkSwitch($arr['update']);
+                    $arr['delete'] = $this->fkSwitch($arr['delete']);
+
+                    // This is Foreign key constraint name found in query search.
+                    $fkNameA = "fk_{$this->prefix}{$arr['table']}_{$this->tableText}_{$arr['column']}";
+                    $fkRow = ($this->fkList[$fkNameA] ?? null);
+                    $fkKey = ($fkRow->CONSTRAINT_NAME ?? null);
+
+                    if (isset($arr['drop']) && $arr['drop'] === true) {
+                        if (!is_null($fkKey)) {
+                            $sql .= "ALTER TABLE `{$this->table}` DROP FOREIGN KEY `{$fkKey}`;";
+                        }
+                    } else {
+                        if (!is_null($fkKey)) {
+                            $sql .= "ALTER TABLE `{$this->table}` DROP FOREIGN KEY `{$fkKey}`;\n\n";
+                            unset($this->fkList[$fkKey]);
+                        }
+
+                        $sql .= "ALTER TABLE `{$this->table}`\n ";
+                        $sql .= "ADD CONSTRAINT `{$fkNameA}`\n ";
+                        $sql .= "FOREIGN KEY (`{$col}`)\n ";
+                        $sql .= "REFERENCES `{$this->prefix}{$arr['table']}`(`{$arr['column']}`)\n ";
+                        $sql .= "ON DELETE {$arr['delete']}\n ";
+                        $sql .= "ON UPDATE {$arr['update']};\n ";
+
+                        if (count($this->fkList) > 0) {
+                            foreach ($this->fkList as $key => $row) {
+                                $sql .= "\nALTER TABLE `{$this->table}` DROP FOREIGN KEY `{$key}`;\n\n";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return $sql;
+    }
+
+    private function fkSwitch($val)
+    {
+        $val = strtoupper($val);
+        switch ($val) {
+            case 'CASCADE':
+                return $val;
+                break;
+            case 'SET_NULL':
+                return "SET NULL";
+                break;
+            case 'NO_ACTION':
+                return "NO ACTION";
+                break;
+            case 'RESTRICT':
+                return $val;
+                break;
+        }
+
+        return null;
+    }
+
+    /**
+     * Build key sql output
+     * @return string
+     */
+    private function buildKeys(): string
+    {
+
+        $sql = "";
+        $tbKeys = $this->tbKeys();
+        $prepareDrop = $this->tbKeysType();
+
+        if (count($this->keys) > 0) {
+            $sqlKeyArr = array();
+            foreach ($this->keys as $col => $key) {
+                $col = Connect::prep($col);
+                $key = strtoupper(Connect::prep($key));
+
+                // Prepare DROP
+                if (isset($prepareDrop[$col]) && ($index = array_search($key, $prepareDrop[$col])) !== false) {
+                    unset($prepareDrop[$col][$index]);
+                }
+
+                // Prepare ADD
+                if (empty($this->colData[$col]) || !(bool)$this->colData[$col]->Key) {
+                    switch ($key) {
+                        case 'INDEX':
+                            $sqlKeyArr[] = "ADD INDEX `{$col}` (`{$col}`)";
+
+                            break;
+                        case 'PRIMARY':
+                            $this->primary([$col]);
+                            break;
+                        default:
+                            $sqlKeyArr[] = "ADD {$key} INDEX `{$col}` (`{$col}`)";
+                            break;
+                    }
+                }
+            }
+
+            // DROP Possible keys
+            if (count($prepareDrop) > 0) {
+                foreach ($prepareDrop as $a => $arr) {
+                    if (($index = array_search("PRIMARY", $arr)) !== false) {
+                        unset($arr[$index]);
+                    }
+                    if (count($arr) > 0) {
+                        foreach ($tbKeys[$a] as $b => $col) {
+                            $sqlKeyArr[] = "DROP INDEX `{$col}`";
+                        }
+                    }
+                }
+            }
+
+            // Build alter tabel keys
+            if (count($sqlKeyArr) > 0) {
+                $sql = "ALTER TABLE `{$this->table}`\n ".implode(",\n", $sqlKeyArr).";";
+            }
+        }
+
+        return $sql;
+    }
+
+
+    public static function createDatabase($host, $user, $pass, $database)
+    {
+
+        $conn = new \mysqli($host, $user, $pass);
+        if ($conn->connect_error) {
+            die("Connection failed: " . $conn->connect_error);
+        }
+
+        if ($result = $conn->query("CREATE DATABASE IF NOT EXISTS `{$database}`")) {
+            return $result;
+        } else {
+            throw new \Exception($conn->error, 1);
+        }
+
+        $conn->close();
+    }
+
+    private function buildAI()
+    {
+        $sql = "";
+        if (count($this->ai) > 0) {
+            foreach ($this->ai as $col => $a) {
+                //if(empty($this->colData[$col]) || strpos($this->colData[$col]->Extra, "auto_increment") === false) {
+                $sql .= "ALTER TABLE `{$this->table}` MODIFY `{$col}` {$a['type']} UNSIGNED NOT NULL {$a['value']};";
+                //}
+            }
+        }
+        return $sql;
+    }
+
+    private function buildRename()
+    {
+        $sql = "";
+        if (count($this->rename) > 0) {
+            foreach ($this->rename as $col => $newCol) {
+                $sql .= "ALTER TABLE `{$this->table}` CHANGE `{$col}` `{$newCol}` ".$this->type().";\n";
+            }
+        }
+        return $sql;
+    }
+
+    public function fkExists(string $table, string $col)
+    {
+        $table = Connect::prep($table);
+        $col = Connect::prep($col);
+        $dbName = Connect::inst()->getDBName();
+        $result = Connect::query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM ".
+            "INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '{$dbName}' AND ".
+            "TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
+
+        $arr = array();
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_object()) {
+                $arr[$row->CONSTRAINT_NAME] = $row;
+            }
+        }
+        return $arr;
+    }
+
+    public function tableExists(string $table = null)
+    {
+        if (is_null($this->tableExists)) {
+            $this->tableExists = false;
+            if (is_null($table)) {
+                $table = $this->table;
+            }
+            $table = Connect::prep($table);
+            $result = Connect::query("SHOW TABLES LIKE '{$table}'");
+            if ($result && $result->num_rows > 0) {
+                $this->tableExists = $result;
+            }
+        }
+        return $this->tableExists;
+    }
+
+    public function columnExists(string $table, string $col)
+    {
+        if ($this->tableExists($table)) {
+            $table = Connect::prep($table);
+            $col = Connect::prep($col);
+            $result = Connect::query("SHOW COLUMNS FROM {$table} LIKE '{$col}'");
+            if ($result && $result->num_rows > 0) {
+                return $result;
+            }
+        }
+        return false;
+    }
 }
