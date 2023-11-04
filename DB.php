@@ -44,6 +44,7 @@ class DB {
 	private $sql;
 	private $dynamic;
 	private $mig;
+	private $fkData;
 
 	static private $mysqlVars;
 	
@@ -56,21 +57,22 @@ class DB {
 	static function __callStatic($method, $args) 
 	{
 		if(count($args) > 0) {
+			
 			$defaultArgs = $args;
 			$length = count($defaultArgs);
 			$table = array_pop($args);
-
+			
 			$mig = NULL;
 			if($table instanceof MigrateInterface) {
 				$mig = new WhitelistMigration($table);
 				$table = $mig->getTable();
 			}
-
+			
 			$inst = static::table($table);
 			if(is_null($inst->alias)) $inst->alias = $inst->table;
 			$inst->mig = $mig;
 			$inst->method = $method;
-
+			
 			switch($inst->method) {
 				case 'select': case 'selectView':
 					if($inst->method === "selectView") $inst->table = static::VIEW_PREFIX_NAME."_".$inst->table;
@@ -532,17 +534,30 @@ class DB {
 	public function join(string|array|MigrateInterface $table, string|array $where = NULL, array $sprint = array(), string $type = "INNER"): self 
 	{
 		if($table instanceof MigrateInterface) {
-
-
-			$where = $this->linkRelatedTables($table);
-			$joinTable = key($where);
-
-			if(empty($where[$joinTable])) {
-				$where = $this->linkRelatedTables($table, $this->mig->getMig());
-				$joinTable = key($where);
-			}
 			
-			$this->join[] = "{$type} JOIN {$joinTable} ON ".implode(" ", $where[$joinTable]);
+			$main = $this->getMainFKData();
+			$prefix = Connect::prefix();
+			$data = $table->getData();
+			$this->mig->mergeData($data);
+
+			foreach($data as $col => $row) {
+				if(isset($row['fk'])) {
+					foreach($row['fk'] as $a) {
+						if($a['table'] === (string)$this->table) {
+							$this->join[] = "{$type} JOIN ".$prefix.$table->getTable()." ".$table->getTable()." ON (".$table->getTable().".{$col} = {$a['table']}.{$a['column']})";
+						}
+					}
+
+				} else {
+					foreach($main as $c => $a) {
+						foreach($a as $t => $d) {
+							if(in_array($col, $d)) {
+								$this->join[] = "{$type} JOIN ".$prefix.$table->getTable()." ".$table->getTable()." ON ({$t}.{$col} = {$this->alias}.{$c})";
+							}
+						}
+					}
+				}
+			}
 			
 		} else {
 			if(is_null($where)) throw new DBQueryException("You need to specify the argumnet 2 (where) value!", 1);
@@ -1116,6 +1131,23 @@ class DB {
 	}
 
 	/**
+	 * Get the Main FK data protocol
+	 * @return array
+	 */
+	final protected function getMainFKData(): array 
+	{
+		if(is_null($this->fkData)) {
+			$this->fkData = array();
+			foreach($this->mig->getMig()->getData() as $col => $row) {
+				if(isset($row['fk'])) {
+					foreach($row['fk'] as $a) $this->fkData[$col][$a['table']][] = $a['column'];
+				}
+			}
+		}
+		return $this->fkData;
+	}
+
+	/**
 	 * Propegate where data structure
 	 * @param string|AttrInterface $key
 	 * @param string|AttrInterface $val
@@ -1132,40 +1164,7 @@ class DB {
 
 		$data[$this->whereIndex][$this->whereAnd][$this->compare][$key][] = $val;
 		$this->whereProtocol[$key][] = $val;
-
 		$this->resetWhere();
-	}
-
-	/**
-	 * Auto link tables together
-	 * @param  MigrateInterface $migInst
-	 * @return array
-	 */
-	final protected function linkRelatedTables(MigrateInterface $migInstA, ?MigrateInterface $migInstB = NULL): array 
-	{
-		$prefix = Connect::prefix();
-		$data = $migInstA->getData();
-
-		// Add join columns to column whitelist
-		$this->mig->mergeData($data);
-
-		$valid = new WhitelistMigration($migInstA);
-		$table = $this->getTable();
-		$joinTable = $prefix.$valid->getTable();
-		if(!is_null($migInstB)) $data = $migInstB->getData();
-
-		$where = [];
-		foreach($data as $col => $a) {
-			if(isset($a['fk'])) foreach($a['fk'] as $fk) {
-				if(!is_null($migInstB)) {
-					$where[] = "{$this->alias}.{$col} = ".$valid->getTable().".{$fk['column']}";
-				} else {
-					$where[] = $valid->getTable().".{$col} = {$this->alias}.{$fk['column']}";
-				}
-			}
-		}
-
-		return ["{$joinTable} ".$valid->getTable() => $where];
 	}
 
 	/**
