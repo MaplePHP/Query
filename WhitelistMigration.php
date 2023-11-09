@@ -27,7 +27,7 @@ class WhitelistMigration
     private $mig;
     private $data;
     private $message;
-    private $key;
+    //private $key;
 
     /**
      * WhitelistMigration will take the migration files and use them to make a whitelist validation
@@ -84,8 +84,8 @@ class WhitelistMigration
     public function columns(array $columns): bool
     {
         foreach ($columns as $name) {
-            if (($p = strpos($name, ".")) !== false) {
-                $name = substr($name, $p + 1);
+            if (($colPrefix = strpos($name, ".")) !== false) {
+                $name = substr($name, $colPrefix + 1);
             }
             if ($name !== "*") {
                 if (!isset($this->data[$name])) {
@@ -109,14 +109,14 @@ class WhitelistMigration
         $value = (string)$inst->enclose(false);
 
         // Get column without possible alias
-        if (($p = strpos($key, ".")) !== false) {
-            $key = substr($key, $p + 1);
+        if (($colPrefix = strpos($key, ".")) !== false) {
+            $key = substr($key, $colPrefix + 1);
         }
 
         // Key is assosiated with a Internal MySQL variable then return that
         // value to check if the variable type is of the right type
-        if (DB::hasVariable($key)) {
-            $value = (string)DB::getVariableValue($key);
+        if (Connect::hasVariable($key)) {
+            $value = (string)Connect::getVariableValue($key);
         }
 
         if (!isset($this->data[$key])) {

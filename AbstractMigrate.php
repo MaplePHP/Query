@@ -5,7 +5,7 @@ namespace PHPFuse\Query;
 use PHPFuse\Query\Create;
 use PHPFuse\Query\Interfaces\MigrateInterface;
 
-abstract class MigrateAbstract implements MigrateInterface
+abstract class AbstractMigrate implements MigrateInterface
 {
     protected $mig;
     protected $table;

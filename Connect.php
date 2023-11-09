@@ -20,8 +20,8 @@ class Connect
     private $charset = "utf8mb4";
 
     private static $prefix;
-    private static $self;
-    private static $DB;
+    private static $selectedDB;
+    private static $mysqlVars;
 
     public function __construct($server, $user, $pass, $dbname)
     {
@@ -29,7 +29,6 @@ class Connect
         $this->user = $user;
         $this->pass = $pass;
         $this->dbname = $dbname;
-        self::$self = $this;
     }
 
     /**
@@ -56,15 +55,15 @@ class Connect
      */
     public function execute(): void
     {
-        self::$DB = new mysqli($this->server, $this->user, $this->pass, $this->dbname);
+        self::$selectedDB = new mysqli($this->server, $this->user, $this->pass, $this->dbname);
         if (mysqli_connect_error()) {
             die('Failed to connect to MySQL: ' . mysqli_connect_error());
             throw new ConnectException('Failed to connect to MySQL: '.mysqli_connect_error(), 1);
         }
-        if (!is_null($this->charset) && !mysqli_set_charset(self::$DB, $this->charset)) {
-            throw new ConnectException("Error loading character set ".$this->charset.": ".mysqli_error(self::$DB), 2);
+        if (!is_null($this->charset) && !mysqli_set_charset(self::$selectedDB, $this->charset)) {
+            throw new ConnectException("Error loading character set ".$this->charset.": ".mysqli_error(self::$selectedDB), 2);
         }
-        mysqli_character_set_name(self::$DB);
+        mysqli_character_set_name(self::$selectedDB);
     }
 
     /**
@@ -81,7 +80,7 @@ class Connect
      */
     public static function DB(): mysqli
     {
-        return static::$DB;
+        return static::$selectedDB;
     }
 
     /**
@@ -128,9 +127,9 @@ class Connect
      * @param  string|null $prefix Expected table prefix (NOT database prefix)
      * @return void
      */
-    public static function selectDB(string $DB, ?string $prefix = null): void
+    public static function selectDB(string $databaseName, ?string $prefix = null): void
     {
-        mysqli_select_db(static::$DB, $DB);
+        mysqli_select_db(static::$selectedDB, $databaseName);
         if (!is_null($prefix)) {
             static::setPrefix($prefix);
         }
@@ -144,33 +143,71 @@ class Connect
      */
     public static function multiQuery(string $sql, object &$mysqli = null): array
     {
-        $c = 0;
+        $count = 0;
         $err = array();
-        $mysqli = self::$DB;
+        $mysqli = self::$selectedDB;
         if (mysqli_multi_query($mysqli, $sql)) {
             do {
                 if ($result = mysqli_use_result($mysqli)) {
+                    /*
                     while ($row = mysqli_fetch_array($result, MYSQLI_ASSOC)) {
                     }
+                     */
                 }
+
                 if (!mysqli_more_results($mysqli)) {
                     break;
                 }
                 if (!mysqli_next_result($mysqli) || mysqli_errno($mysqli)) {
-                    $err[$c] = mysqli_error($mysqli);
+                    $err[$count] = mysqli_error($mysqli);
                     break;
                 }
-                $c++;
+                $count++;
             } while (true);
             if ($result) {
                 mysqli_free_result($result);
             }
         } else {
-            $err[$c] = mysqli_error($mysqli);
+            $err[$count] = mysqli_error($mysqli);
         }
 
         //mysqli_close($mysqli);
         return $err;
+    }
+
+    /**
+     * Start Transaction
+     * @return Transaction instance. You can use instance to call: inst->rollback() OR inst->commit()
+     */
+    public static function beginTransaction()
+    {
+        Connect::DB()->begin_transaction();
+        return Connect::DB();
+    }
+
+
+    // Same as @beginTransaction
+    public static function transaction()
+    {
+        return self::beginTransaction();
+    }
+
+    /**
+     * Commit transaction
+     * @return void
+     */
+    public static function commit(): void
+    {
+        Connect::DB()->commit();
+    }
+
+    /**
+     * Rollback transaction
+     * @return void
+     */
+    public static function rollback(): void
+    {
+        Connect::DB()->rollback();
     }
 
     /**
@@ -196,16 +233,16 @@ class Connect
     public static function endProfile($html = true): string|array
     {
         $totalDur = 0;
-        $rs = Connect::query("show profiles");
+        $result = Connect::query("show profiles");
 
         $output = "";
         if ($html) {
             $output .= "<p style=\"color: red;\">";
         }
-        while ($rd = $rs->fetch_object()) {
-            $dur = round($rd->Duration, 4) * 1000;
+        while ($row = $result->fetch_object()) {
+            $dur = round($row->Duration, 4) * 1000;
             $totalDur += $dur;
-            $output .= $rd->Query_ID.' - <strong>'.$dur.' ms</strong> - '.$rd->Query."<br>\n";
+            $output .= $row->Query_ID.' - <strong>'.$dur.' ms</strong> - '.$row->Query."<br>\n";
         }
         $total = round($totalDur, 4);
 
@@ -216,5 +253,53 @@ class Connect
         } else {
             return array("row" => $output, "total" => $total);
         }
+    }
+
+     /**
+     * Create Mysql variable
+     * @param string $key   Variable key
+     * @param string $value Variable value
+     */
+    public static function setVariable(string $key, string $value): AttrInterface
+    {
+        $escapedVarName = self::withAttr("@{$key}", ["enclose" => false, "encode" => false]);
+        $escapedValue = (($value instanceof AttrInterface) ? $value : self::withAttr($value));
+
+        self::$mysqlVars[$key] = clone $escapedValue;
+        Connect::query("SET {$escapedVarName} = {$escapedValue}");
+        return $escapedVarName;
+    }
+
+    /**
+     * Get Mysql variable
+     * @param string $key   Variable key
+     */
+    public static function getVariable(string $key): AttrInterface
+    {
+        if (!self::hasVariable($key)) {
+            throw new DBQueryException("DB MySQL variable is not set.", 1);
+        }
+        return self::withAttr("@{$key}", ["enclose" => false, "encode" => false]);
+    }
+
+    /**
+     * Get Mysql variable
+     * @param string $key   Variable key
+     */
+    public static function getVariableValue(string $key): string
+    {
+        if (!self::hasVariable($key)) {
+            throw new DBQueryException("DB MySQL variable is not set.", 1);
+        }
+        return self::$mysqlVars[$key]->enclose(false)->encode(false);
+    }
+
+    /**
+     * Has Mysql variable
+     * @param string $key   Variable key
+     */
+    public static function hasVariable(string $key): bool
+    {
+        return (isset(self::$mysqlVars[$key]));
     }
 }

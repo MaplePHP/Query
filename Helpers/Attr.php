@@ -1,7 +1,8 @@
 <?php
 
-namespace PHPFuse\Query;
+namespace PHPFuse\Query\Helpers;
 
+use PHPFuse\Query\Connect;
 use PHPFuse\Query\Interfaces\AttrInterface;
 use PHPFuse\DTO\Format\Encode;
 
@@ -14,7 +15,7 @@ class Attr implements AttrInterface
     private $enclose = true;
     private $jsonEncode = true;
     private $encode = true;
-    private $mysqlVar = false;
+    //private $mysqlVar = false;
 
     /**
      * Process string after your choises

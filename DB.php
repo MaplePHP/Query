@@ -5,37 +5,29 @@
 
 namespace PHPFuse\Query;
 
-use PHPFuse\Query\Handlers\MySqliHandler;
+use PHPFuse\Query\Helpers\Attr;
+
 use PHPFuse\Query\Interfaces\AttrInterface;
 use PHPFuse\Query\Interfaces\MigrateInterface;
+use PHPFuse\Query\Interfaces\DBInterface;
 use PHPFuse\Query\Exceptions\DBValidationException;
 use PHPFuse\Query\Exceptions\DBQueryException;
 
-class DB
+class DB extends AbstractDB implements DBInterface
 {
-    // Whitelists
-    public const OPERATORS = [">", ">=", "<", "<>", "!=", "<=", "<=>"]; // Comparison operators
-    public const JOIN_TYPES = ["INNER", "LEFT", "RIGHT", "CROSS"]; // Join types
-    public const VIEW_PREFIX_NAME = "view"; // View prefix
-
-    private $table;
-    private $alias;
+    
     private $method;
     private $explain;
 
-    private $columns;
+    
     private $where;
     private $having;
-    private $set = array();
+    private $set = [];
     private $dupSet;
-    private $whereAnd = "AND";
-    private $compare = "=";
-    private $whereIndex = 0;
-    private $whereProtocol = array();
     private $limit;
     private $offset;
     private $order;
-    private $join;
+    private $join = [];
     private $distinct;
     private $group;
     private $noCache;
@@ -44,10 +36,7 @@ class DB
     private $viewName;
     private $sql;
     private $dynamic;
-    private $mig;
-    private $fkData;
-
-    private static $mysqlVars;
+    
 
     /**
      * It is a semi-dynamic method builder that expects certain types of objects to be setted
@@ -59,20 +48,8 @@ class DB
     {
         if (count($args) > 0) {
             $defaultArgs = $args;
-            $length = count($defaultArgs);
             $table = array_pop($args);
-
-            $mig = null;
-            if ($table instanceof MigrateInterface) {
-                $mig = new WhitelistMigration($table);
-                $table = $mig->getTable();
-            }
-
             $inst = static::table($table);
-            if (is_null($inst->alias)) {
-                $inst->alias = $inst->table;
-            }
-            $inst->mig = $mig;
             $inst->method = $method;
 
             switch ($inst->method) {
@@ -103,7 +80,6 @@ class DB
         } else {
             $inst = new static();
         }
-
         return $inst;
     }
 
@@ -120,23 +96,16 @@ class DB
         $shift = array_shift($camelCaseArr);
 
         switch ($shift) {
-            case "columns":
-            case "column":
-            case "col":
-            case "pluck":
+            case "pluck": // Columns??
                 if (is_array($args[0] ?? null)) {
                     $args = $args[0];
                 }
-                        $this->columns($args);
+                $this->columns($args);
                 break;
             case "where":
-                $this->camelLoop($camelCaseArr, $args, function ($col, $val) {
-                    $this->where($col, $val);
-                });
-                break;
             case "having":
-                $this->camelLoop($camelCaseArr, $args, function ($col, $val) {
-                    $this->having($col, $val);
+                $this->camelLoop($camelCaseArr, $args, function ($col, $val) use ($shift) {
+                    $this->{$shift}($col, $val);
                 });
                 break;
             case "order":
@@ -152,71 +121,35 @@ class DB
                 $this->join($args[0], ($args[1] ?? null), ($args[2] ?? []), $camelCaseArr[0]);
                 break;
             default:
-                throw new DBQueryException("Method \"{$method}\" does not exists!", 1);
+                return $this->query($this, $method, $args);
+                break;
         }
         return $this;
     }
 
     /**
      * You can build queries like Larvel If you want. I do not think they have good semantics tho.
+     * It is better to use (DB::select, DB::insert, DB::update, DB::delete)
      * @param  string|array $table Mysql table name (if array e.g. [TABLE_NAME, ALIAS])
      * @return self new intance
      */
-    public static function table(string|array $data): self
+    public static function table(string|array|MigrateInterface $data): self
     {
+        $mig = null;
+        if ($data instanceof MigrateInterface) {
+            $mig = new WhitelistMigration($data);
+            $data = $mig->getTable();
+        }
+        
         $inst = new static();
         $data = $inst->sperateAlias($data);
         $inst->alias = $data['alias'];
         $inst->table = Attr::value($data['table'])->enclose(false);
+        $inst->mig = $mig;
+        if (is_null($inst->alias)) {
+            $inst->alias = $inst->table;
+        }
         return $inst;
-    }
-
-    /**
-     * Create Mysql variable
-     * @param string $key   Variable key
-     * @param string $value Variable value
-     */
-    public static function setVariable(string $key, string $value): AttrInterface
-    {
-        $nk = self::withAttr("@{$key}", ["enclose" => false, "encode" => false]);
-        $value = (($value instanceof AttrInterface) ? $value : self::withAttr($value));
-
-        self::$mysqlVars[$key] = clone $value;
-        Connect::query("SET {$nk} = {$value}");
-        return $nk;
-    }
-
-    /**
-     * Get Mysql variable
-     * @param string $key   Variable key
-     */
-    public static function getVariable(string $key): AttrInterface
-    {
-        if (!self::hasVariable($key)) {
-            throw new DBQueryException("DB MySQL variable is not set.", 1);
-        }
-        return self::withAttr("@{$key}", ["enclose" => false, "encode" => false]);
-    }
-
-    /**
-     * Get Mysql variable
-     * @param string $key   Variable key
-     */
-    public static function getVariableValue(string $key): string
-    {
-        if (!self::hasVariable($key)) {
-            throw new DBQueryException("DB MySQL variable is not set.", 1);
-        }
-        return self::$mysqlVars[$key]->enclose(false)->encode(false);
-    }
-
-    /**
-     * Has Mysql variable
-     * @param string $key   Variable key
-     */
-    public static function hasVariable(string $key): bool
-    {
-        return (isset(self::$mysqlVars[$key]));
     }
 
     /**
@@ -299,12 +232,15 @@ class DB
      */
     protected function delete(): self
     {
-        $tbToCol = $this->buildTableToCol();
+        $linkedTables = $this->getAllQueryTables();
+        if (!is_null($linkedTables)) {
+            $linkedTables = " {$linkedTables}";
+        }
         $join = $this->buildJoin();
         $where = $this->buildWhere("WHERE", $this->where);
         $limit = $this->buildLimit();
 
-        $this->sql = "{$this->explain}DELETE{$tbToCol} FROM ".$this->getTable()."{$join}{$where}{$limit}";
+        $this->sql = "{$this->explain}DELETE{$linkedTables} FROM ".$this->getTable()."{$join}{$where}{$limit}";
         return $this;
     }
 
@@ -348,23 +284,6 @@ class DB
     {
         $this->sql = "SHOW CREATE VIEW ".$this->viewName;
         return $this;
-    }
-
-    /**
-     * Get return a new generated UUID
-     * @return null|string
-     */
-    public static function getUUID(): ?string
-    {
-        if ($result = Connect::query("SELECT UUID()")) {
-            if ($result && $result->num_rows > 0) {
-                $row = $result->fetch_row();
-                return ($row[0] ?? null);
-            }
-            return null;
-        } else {
-            throw new DBQueryException(Connect::DB()->error, 1);
-        }
     }
 
     public function columns(...$columns)
@@ -564,13 +483,11 @@ class DB
 
     /**
      * Mysql JOIN query (Default: INNER)
-     * Supports dynamic method name calls like: joinLeft, joinRight...
-     * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
-     * @param  string $table  Table name of the joined table
-     * @param  string $sql    SQL string example: (a.id = b.user_id AND status = '%d')
-     * @param  array  $sprint Mysql prep values
-     * @param  string $type   Valid join type ("INNER", "LEFT", "RIGHT", "CROSS"). Anything else will become "INNER".
-     * @return self
+     * @param  string|array|MigrateInterface    $table  Mysql table name (if array e.g. [TABLE_NAME, ALIAS]) or MigrateInterface instance
+     * @param  array|array                      $where  Where data (as array or string e.g. string is raw)
+     * @param  array                            $sprint Use sprint to prep data
+     * @param  string                           $type   Type of join
+     * @return [type]                   [description]
      */
     public function join(
         string|array|MigrateInterface $table,
@@ -578,31 +495,9 @@ class DB
         array $sprint = array(),
         string $type = "INNER"
     ): self {
-        if ($table instanceof MigrateInterface) {
-            $main = $this->getMainFKData();
-            $prefix = Connect::prefix();
-            $data = $table->getData();
-            $this->mig->mergeData($data);
 
-            foreach ($data as $col => $row) {
-                if (isset($row['fk'])) {
-                    foreach ($row['fk'] as $a) {
-                        if ($a['table'] === (string)$this->table) {
-                            $this->join[] = "{$type} JOIN ".$prefix.$table->getTable()." ".$table->getTable().
-                            " ON (".$table->getTable().".{$col} = {$a['table']}.{$a['column']})";
-                        }
-                    }
-                } else {
-                    foreach ($main as $c => $a) {
-                        foreach ($a as $t => $d) {
-                            if (in_array($col, $d)) {
-                                $this->join[] = "{$type} JOIN ".$prefix.$table->getTable()." ".$table->getTable().
-                                " ON ({$t}.{$col} = {$this->alias}.{$c})";
-                            }
-                        }
-                    }
-                }
-            }
+        if ($table instanceof MigrateInterface) {
+            $this->join = array_merge($this->join, $this->buildJoinFromMig($table, $type));
         } else {
             if (is_null($where)) {
                 throw new DBQueryException("You need to specify the argumnet 2 (where) value!", 1);
@@ -610,7 +505,6 @@ class DB
 
             $prefix = Connect::prefix();
             $arr = $this->sperateAlias($table);
-
             $table = (string)$this->prep($arr['table'], false);
             $alias = (!is_null($arr['alias'])) ? " {$arr['alias']}" : " {$table}";
 
@@ -630,19 +524,10 @@ class DB
                 $out = $this->sprint($where, $sprint);
             }
             $type = $this->joinTypes(strtoupper($type)); // Whitelist
-            $this->join[$table] = "{$type} JOIN {$prefix}{$table}{$alias} ON ".$out;
+            $this->join[] = "{$type} JOIN {$prefix}{$table}{$alias} ON ".$out;
+            $this->joinedTables[$table] = "{$prefix}{$table}";
         }
 
-        return $this;
-    }
-
-    /**
-     * Disable mysql query cache
-     * @return self
-     */
-    public function noCache(): self
-    {
-        $this->noCache = "SQL_NO_CACHE ";
         return $this;
     }
 
@@ -663,6 +548,16 @@ class DB
     public function explain(): self
     {
         $this->explain = "EXPLAIN ";
+        return $this;
+    }
+
+    /**
+     * Disable mysql query cache
+     * @return self
+     */
+    public function noCache(): self
+    {
+        $this->noCache = "SQL_NO_CACHE ";
         return $this;
     }
 
@@ -730,282 +625,17 @@ class DB
 
     /**
      * Union result
-     * @param  DB $inst
-     * @param  bool  $allowDuplicate  UNION by default selects only distinct values.
-     * Use UNION ALL to also select duplicate values!
+     * @param  DBInterface  $inst
+     * @param  bool         $allowDuplicate  UNION by default selects only distinct values.
+     *                                       Use UNION ALL to also select duplicate values!
      * @return self
      */
-    public function union(DB $inst, bool $allowDuplicate = false): self
+    public function union(DBInterface $inst, bool $allowDuplicate = false): self
     {
         $this->order = null;
         $this->limit = null;
         $this->union = " UNION ".($allowDuplicate ? "ALL " : "").$inst->select()->sql();
         return $this;
-    }
-
-    /**
-     * Enclose value
-     * @param  string        $val
-     * @param  bool|boolean  $enclose disbale enclose
-     * @return string
-     */
-    public function enclose(string|AttrInterface $val, bool $enclose = true): self
-    {
-        if ($val instanceof AttrInterface) {
-            return $val;
-        }
-        if ($enclose) {
-            return "'{$val}'";
-        }
-        return $val;
-    }
-
-    /**
-     * Genrate SQL string of current instance/query
-     * @return string
-     */
-    public function sql(): string
-    {
-        $this->build();
-        return $this->sql;
-    }
-
-    /**
-     * Execute query result
-     * @return object|array|bool
-     */
-    public function execute(): object|array|bool
-    {
-        $this->build();
-        if ($result = Connect::query($this->sql)) {
-            return $result;
-        } else {
-            throw new DBQueryException(Connect::DB()->error, 1);
-        }
-        return false;
-    }
-
-    /**
-     * Execute query result And fetch as obejct
-     * @return bool|object|array
-     */
-    public function get(): bool|object|array
-    {
-        return $this->obj();
-    }
-
-    /**
-     * SAME AS @get(): Execute query result And fetch as obejct
-     * @return bool|object (Mysql result)
-     */
-    final public function obj(): bool|object
-    {
-        if (($result = $this->execute()) && $result->num_rows > 0) {
-            return $result->fetch_object();
-        }
-        return false;
-    }
-
-    /**
-     * Execute SELECT and fetch as array with nested objects
-     * @param  function $callback callaback, make changes in query and if return then change key
-     * @return array
-     */
-    final public function fetch(?callable $callback = null): array
-    {
-        $key = 0;
-        $k = null;
-        $arr = array();
-
-        if (($result = $this->execute()) && $result->num_rows > 0) {
-            while ($row = $result->fetch_object()) {
-                if ($callback) {
-                    $k = $callback($row, $key);
-                }
-                $sk = ((!is_null($k)) ? $k : $key);
-                if (is_array($sk)) {
-                    $arr = array_replace_recursive($arr, $k);
-                } else {
-                    $arr[$sk] = $row;
-                }
-
-                $key++;
-            }
-        }
-        return $arr;
-    }
-
-    /**
-     * Access Mysql DB connection
-     * @return query\connect
-     */
-    public function db()
-    {
-        return Connect::DB();
-    }
-
-    /**
-     * Get insert AI ID from prev inserted result
-     * @return int
-     */
-    public function insertID()
-    {
-        return Connect::DB()->insert_id;
-    }
-
-    /**
-     * Start Transaction
-     * @return Transaction instance. You can use instance to call: inst->rollback() OR inst->commit()
-     */
-    public static function beginTransaction()
-    {
-        Connect::DB()->begin_transaction();
-        return Connect::DB();
-    }
-
-
-    // Same as @beginTransaction
-    public static function transaction()
-    {
-        return self::beginTransaction();
-    }
-
-    /**
-     * Commit transaction
-     * @return void
-     */
-    public static function commit(): void
-    {
-        Connect::DB()->commit();
-    }
-
-    /**
-     * Rollback transaction
-     * @return void
-     */
-    public static function rollback(): void
-    {
-        Connect::DB()->rollback();
-    }
-
-    /**
-     * Get current instance Table name with prefix attached
-     * @return string
-     */
-    public function getTable(bool $withAlias = false): string
-    {
-        $alias = ($withAlias && !is_null($this->alias)) ? " {$this->alias}" : "";
-        return Connect::prefix().$this->table.$alias;
-    }
-
-    /**
-     * Get current instance Columns
-     * @return array
-     */
-    public function getColumns(): array
-    {
-        if (!is_null($this->mig) && !$this->mig->columns($this->columns)) {
-            throw new DBValidationException($this->mig->getMessage(), 1);
-        }
-        return $this->columns;
-    }
-
-    /**
-     * Get set
-     * @return array
-     */
-    public function getSet(): array
-    {
-        return $this->set;
-    }
-
-    /**
-     * Get method
-     * @return string
-     */
-    public function getMethod(): string
-    {
-        return $this->method;
-    }
-
-    /**
-     * Will reset Where input
-     */
-    private function resetWhere(): void
-    {
-        $this->whereAnd = "AND";
-        $this->compare = "=";
-    }
-
-    /**
-     * Use to loop camel case method columns
-     * @param  array    $camelCaseArr
-     * @param  array    $valArr
-     * @param  callable $call
-     * @return void
-     */
-    private function camelLoop(array $camelCaseArr, array $valArr, callable $call): void
-    {
-        foreach ($camelCaseArr as $k => $col) {
-            $col = lcfirst($col);
-            $value = ($valArr[$k] ?? null);
-            $call($col, $value);
-        }
-    }
-
-    /**
-     * Mysql Prep/protect string
-     * @param  string $val
-     * @return string
-     */
-    private function prep(string|array|AttrInterface $val, bool $enclose = true): AttrInterface
-    {
-        if ($val instanceof AttrInterface) {
-            return $val;
-        }
-        $val = Attr::value($val);
-        $val->enclose($enclose);
-        return $val;
-    }
-
-    /**
-     * Mysql Prep/protect array items
-     * @param  array        $arr
-     * @param  bool|boolean $enclose Auto enclose?
-     * @param  bool|boolean $trim    Auto trime
-     * @return array
-     */
-    private function prepArr(array $arr, bool $enclose = true)
-    {
-        $new = array();
-        foreach ($arr as $k => $v) {
-            $key = (string)$this->prep($k, false);
-            //$v = $this->prep($v, $enclose);
-            //$value = $this->enclose($v, $enclose);
-            $new[$key] = (string)$this->prep($v, $enclose);
-        }
-        return $new;
-    }
-
-    /**
-     * Build on YB to col sql string part
-     * @return string
-     */
-    private function buildTableToCol(): string
-    {
-        if (!is_null($this->join)) {
-            $new = array();
-            $keys = array_keys($this->join);
-            array_unshift($keys, $this->getTable());
-            foreach ($keys as $val) {
-                $a = explode(" ", $val);
-                $a = array_filter($a);
-                $new[] = end($a);
-            }
-
-            return " ".implode(",", $new);
-        }
-        return "";
     }
 
     /**
@@ -1053,52 +683,41 @@ class DB
     }
 
     /**
-     * Will build the
-     * @param  string $prefix [description]
-     * @param  array  $where  [description]
-     * @return [type]         [description]
+     * Will build where string
+     * @param  string $prefix
+     * @param  array  $where
+     * @return string
      */
     private function buildWhere(string $prefix, ?array $where): string
     {
         $out = "";
         if (!is_null($where)) {
             $out = " {$prefix}";
-            $i = 0;
+            $index = 0;
             foreach ($where as $array) {
                 $firstAnd = key($array);
-                $andOr = "";
-                $out .= (($i > 0) ? " {$firstAnd}" : "")." (";
-                $c = 0;
-                foreach ($array as $key => $arr) {
-                    foreach ($arr as $operator => $a) {
-                        if (is_array($a)) {
-                            foreach ($a as $col => $b) {
-                                foreach ($b as $val) {
-                                    if ($c > 0) {
-                                        $out .= "{$key} ";
-                                    }
-                                    $out .= "{$col} {$operator} {$val} ";
-                                    $c++;
-                                }
-                            }
-                        } else {
-                            $out .= "{$key} {$a} ";
-                            $c++;
-                        }
-                    }
-                }
+                $out .= (($index > 0) ? " {$firstAnd}" : "")." (";
+                $out .= $this->whereArrToStr($array);
                 $out .= ")";
-                $i++;
+                $index++;
             }
         }
         return $out;
     }
 
+    /**
+     * Build joins
+     * @return [type] [description]
+     */
     private function buildJoin(): string
     {
-        return (!is_null($this->join)) ? " ".implode(" ", $this->join) : "";
+        return (count($this->join) > 0) ? " ".implode(" ", $this->join) : "";
     }
 
+    /**
+     * Byuld limit
+     * @return string
+     */
     private function buildLimit(): string
     {
         if (is_null($this->limit) && !is_null($this->offset)) {
@@ -1108,159 +727,62 @@ class DB
         return (!is_null($this->limit)) ? " LIMIT {$this->limit}{$offset}" : "";
     }
 
-    //...Whitelist START...
-
-    /**
-     * Whitelist comparison operators
-     * @param  string $val
-     * @return string
-     */
-    private function operator(string $val): string
-    {
-        $val = trim($val);
-        if (in_array($val, $this::OPERATORS)) {
-            return $val;
-        }
-        return "=";
-    }
-
-    /**
-     * Whitelist mysql sort directions
-     * @param  string $val
-     * @return string
-     */
-    private function orderSort(string $val): string
-    {
-        $val = strtoupper($val);
-        if ($val === "ASC" || $val === "DESC") {
-            return $val;
-        }
-        return "ASC";
-    }
-
-    /**
-     * Whitelist mysql join types
-     * @param  string $val
-     * @return string
-     */
-    private function joinTypes(string $val): string
-    {
-        $val = trim($val);
-        if (in_array($val, $this::JOIN_TYPES)) {
-            return $val;
-        }
-        return "INNER";
-    }
-
-    //...Whitelist END...
-
-    /**
-     * Use vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
-     * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
-     * @param  array     $arr     Mysql prep values
-     * @return self
-     */
-    protected function sprint(string $str, array $arr = array()): string
-    {
-        return vsprintf($str, $this->prepArr($arr, false));
-    }
-
-    /**
-     * Sperate Alias
-     * @param  array  $data
-     * @return array
-     */
-    protected function sperateAlias(string|array $data): array
-    {
-        if (is_array($data)) {
-            if (count($data) !== 2) {
-                throw new DBQueryException("If you specify Table as array then it should look ".
-                    "like this [TABLE_NAME, ALIAS]", 1);
-            }
-            $alias = array_pop($data);
-            $table = reset($data);
-        } else {
-            $alias = null;
-            $table = $data;
-        }
-
-        return ["alias" => $alias, "table" => $table];
-    }
-
-    /**
-     * Will extract camle case to array
-     * @param  string $value string value with possible camel cases
-     * @return array
-     */
-    final protected function extractCamelCase(string $value): array
-    {
-        $arr = array();
-        if (is_string($value)) {
-            $arr = preg_split('#([A-Z][^A-Z]*)#', $value, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-        }
-        return $arr;
-    }
-
-    /**
-     * Get the Main FK data protocol
-     * @return array
-     */
-    final protected function getMainFKData(): array
-    {
-        if (is_null($this->fkData)) {
-            $this->fkData = array();
-            foreach ($this->mig->getMig()->getData() as $col => $row) {
-                if (isset($row['fk'])) {
-                    foreach ($row['fk'] as $a) {
-                        $this->fkData[$col][$a['table']][] = $a['column'];
-                    }
-                }
-            }
-        }
-        return $this->fkData;
-    }
-
-    /**
-     * Propegate where data structure
-     * @param string|AttrInterface $key
-     * @param string|AttrInterface $val
-     * @param array|null &$data static value
-     */
-    final protected function setWhereData(string|AttrInterface $key, string|AttrInterface $val, ?array &$data): void
-    {
-        $key = (string)$this->prep($key, false);
-        $val = $this->prep($val);
-
-        if (!is_null($this->mig) && !$this->mig->where($key, $val)) {
-            throw new DBValidationException($this->mig->getMessage(), 1);
-        }
-
-        $data[$this->whereIndex][$this->whereAnd][$this->compare][$key][] = $val;
-        $this->whereProtocol[$key][] = $val;
-        $this->resetWhere();
-    }
-
     /**
      * Used to call methoed that builds SQL queryies
      */
     final protected function build(): void
     {
         if (!is_null($this->method) && method_exists($this, $this->method)) {
-            $inst = (!is_null($this->dynamic)) ?
-                call_user_func_array($this->dynamic[0], $this->dynamic[1]) :
-                $this->{$this->method}();
+            $inst = (!is_null($this->dynamic)) ? call_user_func_array($this->dynamic[0], $this->dynamic[1]) : $this->{$this->method}();
 
-            if (is_null($this->sql)) {
-                throw new DBQueryException("The Method \"{$this->method}\" expect to return a sql ".
+            if (is_null($inst->sql)) {
+                throw new DBQueryException("The Method \"{$inst->method}\" expect to return a sql ".
                     "building method (like return @select() or @insert()).", 1);
             }
         } else {
             if (is_null($this->sql)) {
-                $m = is_null($this->method) ? "NULL" : $this->method;
-                throw new DBQueryException("Method \"{$m}\" does not exists! You need to create a method that with ".
+                $method = is_null($this->method) ? "NULL" : $this->method;
+                throw new DBQueryException("Method \"{$method}\" does not exists! You need to create a method that with ".
                     "same name as static, that will build the query you are after. ".
                     "Take a look att method @method->select.", 1);
             }
         }
+    }
+
+
+    /**
+     * Genrate SQL string of current instance/query
+     * @return string
+     */
+    public function sql(): string
+    {
+        $this->build();
+        return $this->sql;
+    }
+
+    /**
+     * Get return a new generated UUID
+     * @return null|string
+     */
+    public static function getUUID(): ?string
+    {
+        if ($result = Connect::query("SELECT UUID()")) {
+            if ($result && $result->num_rows > 0) {
+                $row = $result->fetch_row();
+                return ($row[0] ?? null);
+            }
+            return null;
+        } else {
+            throw new DBQueryException(Connect::DB()->error, 1);
+        }
+    }
+
+    /**
+     * Get insert AI ID from prev inserted result
+     * @return int
+     */
+    public function insertID()
+    {
+        return Connect::DB()->insert_id;
     }
 }
