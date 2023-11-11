@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Wazabii DB - For main queries
  */
@@ -7,6 +8,7 @@ namespace PHPFuse\Query;
 
 use PHPFuse\Query\Interfaces\AttrInterface;
 use PHPFuse\Query\Interfaces\MigrateInterface;
+use PHPFuse\Query\Helpers\Attr;
 
 class WhitelistMigration
 {

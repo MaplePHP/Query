@@ -1,4 +1,5 @@
 <?php
+
 /**
     // USAGE:
 
@@ -223,14 +224,14 @@ class Create
 
         $currentTB = false;
         foreach ($arr as $k => $tb) {
-            $tb = ($k !== 0 ? $this->prefix : null).$tb;
+            $tb = ($k !== 0 ? $this->prefix : null) . $tb;
             if ($this->tableExists($tb)) {
                 $currentTB = Connect::prep($tb);
                 break;
             }
         }
 
-        $newTB = Connect::prep($this->prefix.end($arr));
+        $newTB = Connect::prep($this->prefix . end($arr));
 
         if ($currentTB) {
             $this->table = $currentTB;
@@ -262,7 +263,7 @@ class Create
                         //$colArr[] = "JSON_EXTRACT(var_data, '$.".$col."')";
                         //JSON_UNQUOTE is required, if skipp it then data will be added with qutes (")
                         //and all int, floats will become 0 (zero!)
-                        $colArr[] = "JSON_UNQUOTE(JSON_EXTRACT(var_data, '$.".$col."'))";
+                        $colArr[] = "JSON_UNQUOTE(JSON_EXTRACT(var_data, '$." . $col . "'))";
                     } else {
                         $colArr[] = "'{$col}'";
                     }
@@ -280,10 +281,10 @@ class Create
                 }
             }
             if (count($colArr) > 1) {
-                return "GENERATED ALWAYS AS (CONCAT(".implode(",", $colArr)."))";
+                return "GENERATED ALWAYS AS (CONCAT(" . implode(",", $colArr) . "))";
             }
 
-            return "GENERATED ALWAYS AS (".implode(",", $colArr).")";
+            return "GENERATED ALWAYS AS (" . implode(",", $colArr) . ")";
         }
 
         return "";
@@ -428,7 +429,7 @@ class Create
                         if (is_null($this->hasRename())) {
                             $this->add[$col] .= "ADD COLUMN `{$col}` {$attr}";
                             if (!is_null($this->prev)) {
-                                $this->add[$col] .= " AFTER `".$this->after()."`";
+                                $this->add[$col] .= " AFTER `" . $this->after() . "`";
                             }
                         }
                     }
@@ -490,14 +491,14 @@ class Create
             } else {
                 $this->build = "START TRANSACTION;\n\n";
                 $this->build .= "SET FOREIGN_KEY_CHECKS=0;\n";
-                $this->build .= $this->sql."\n";
+                $this->build .= $this->sql . "\n";
                 switch ($this->type) {
                     case "create":
-                        $this->build .= "(".implode(",\n ", $this->add).") ENGINE={$this->engine} DEFAULT ".
+                        $this->build .= "(" . implode(",\n ", $this->add) . ") ENGINE={$this->engine} DEFAULT " .
                         "CHARSET={$this->charset} ROW_FORMAT={$this->rowFormat};";
                         break;
                     case "alter":
-                        $this->build .= "".implode(",\n ", $this->add).";";
+                        $this->build .= "" . implode(",\n ", $this->add) . ";";
                         break;
                 }
 
@@ -650,7 +651,7 @@ class Create
      */
     public function type()
     {
-        return strtoupper($this->args['type']).(!is_null($this->args['length']) ? "({$this->args['length']})" : null);
+        return strtoupper($this->args['type']) . (!is_null($this->args['length']) ? "({$this->args['length']})" : null);
     }
 
     /**
@@ -663,7 +664,7 @@ class Create
             if ($this->args['collate'] === true) {
                 $this->args['collate'] = $this::COLLATION;
             }
-            return "CHARACTER SET ".Connect::prep($this->charset)." COLLATE ".Connect::prep($this->args['collate'])."";
+            return "CHARACTER SET " . Connect::prep($this->charset) . " COLLATE " . Connect::prep($this->args['collate']) . "";
         }
         return null;
     }
@@ -683,8 +684,8 @@ class Create
      */
     public function default()
     {
-        return (!is_null($this->args['default']) && $this->args['default'] !== false) ? "DEFAULT '".
-        Connect::prep($this->args['default'])."'" : null;
+        return (!is_null($this->args['default']) && $this->args['default'] !== false) ? "DEFAULT '" .
+        Connect::prep($this->args['default']) . "'" : null;
     }
 
     /**
@@ -719,13 +720,13 @@ class Create
                 }
 
                 if ($this->args['index'] === "FULLTEXT" && !in_array($this->args['type'], static::FULLTEXT_COLUMNS)) {
-                    throw new QueryCreateException("You can ony have \"{$this->args['index']}\" index on column ".
-                        "types (".implode(", ", static::FULLTEXT_COLUMNS)."), you have \"{$this->args['type']}\".", 1);
+                    throw new QueryCreateException("You can ony have \"{$this->args['index']}\" index on column " .
+                        "types (" . implode(", ", static::FULLTEXT_COLUMNS) . "), you have \"{$this->args['type']}\".", 1);
                 }
 
                 if ($this->args['index'] === "SPATIAL" && !in_array($this->args['type'], static::SPATIAL_COLUMNS)) {
-                    throw new QueryCreateException("You can ony have \"{$this->args['index']}\" index on column types ".
-                        "(".implode(", ", static::FULLTEXT_COLUMNS)."), you have \"{$this->args['type']}\".", 1);
+                    throw new QueryCreateException("You can ony have \"{$this->args['index']}\" index on column types " .
+                        "(" . implode(", ", static::FULLTEXT_COLUMNS) . "), you have \"{$this->args['type']}\".", 1);
                 }
                 return Connect::prep($this->args['index']);
             }
@@ -859,7 +860,7 @@ class Create
 
             // Build alter tabel keys
             if (count($sqlKeyArr) > 0) {
-                $sql = "ALTER TABLE `{$this->table}`\n ".implode(",\n", $sqlKeyArr).";";
+                $sql = "ALTER TABLE `{$this->table}`\n " . implode(",\n", $sqlKeyArr) . ";";
             }
         }
 
@@ -902,7 +903,7 @@ class Create
         $sql = "";
         if (count($this->rename) > 0) {
             foreach ($this->rename as $col => $newCol) {
-                $sql .= "ALTER TABLE `{$this->table}` CHANGE `{$col}` `{$newCol}` ".$this->type().";\n";
+                $sql .= "ALTER TABLE `{$this->table}` CHANGE `{$col}` `{$newCol}` " . $this->type() . ";\n";
             }
         }
         return $sql;
@@ -913,8 +914,8 @@ class Create
         $table = Connect::prep($table);
         $col = Connect::prep($col);
         $dbName = Connect::inst()->getDBName();
-        $result = Connect::query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM ".
-            "INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '{$dbName}' AND ".
+        $result = Connect::query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM " .
+            "INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '{$dbName}' AND " .
             "TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
 
         $arr = array();

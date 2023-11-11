@@ -1,15 +1,17 @@
 <?php
+
 /**
  * Wazabii DB - For main queries
  */
 
 namespace PHPFuse\Query;
 
+use PHPFuse\Query\Exceptions\ConnectException;
 use PHPFuse\Query\Interfaces\DBInterface;
+use PHPFuse\Query\Connect;
 
 class Query
 {
-
     private $sql;
 
     public function __construct(string|DBInterface $sql)
@@ -29,7 +31,7 @@ class Query
         if ($result = Connect::query($this->sql)) {
             return $result;
         } else {
-            throw new DBQueryException(Connect::DB()->error, 1);
+            throw new ConnectException(Connect::DB()->error, 1);
         }
         return false;
     }

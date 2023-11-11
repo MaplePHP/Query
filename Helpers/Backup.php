@@ -57,11 +57,11 @@ class Backup
         }
 
         if (is_file($file)) {
-            $command = 'mysql -h' .DB_SERVER .' -u' .DB_USER .' -p' .DB_PASS .' ' .$this->dbname .' < ' .$file;
+            $command = 'mysql -h' . DB_SERVER . ' -u' . DB_USER . ' -p' . DB_PASS . ' ' . $this->dbname . ' < ' . $file;
             exec($command, $output, $worked);
 
             if ((int)$worked !== 0) {
-                throw new \Exception("An error occurred during the import. This is probobly becouse your webserver ".
+                throw new \Exception("An error occurred during the import. This is probobly becouse your webserver " .
                     "does not the right applications but you can dubble check the database credentials.", 1);
             }
             return true;
@@ -88,8 +88,8 @@ class Backup
 
         $worked = 1; // Error
         if (function_exists("exec")) {
-            $command = 'mysqldump --opt -h'.DB_SERVER.' -u' .DB_USER .' -p' .DB_PASS .' ' .
-            $this->dbname .' '.$this->prefix.$this->table.' > '.$this->file();
+            $command = 'mysqldump --opt -h' . DB_SERVER . ' -u' . DB_USER . ' -p' . DB_PASS . ' ' .
+            $this->dbname . ' ' . $this->prefix . $this->table . ' > ' . $this->file();
             exec($command, $output, $worked);
         }
         return $worked;
@@ -104,7 +104,7 @@ class Backup
         $data = "";
         $rowArr = array();
 
-        $result = Connect::query("SHOW CREATE TABLE ".$this->prefix.$this->table);
+        $result = Connect::query("SHOW CREATE TABLE " . $this->prefix . $this->table);
         $tbRow = $result->fetch_row();
 
 
@@ -120,16 +120,16 @@ class Backup
                 while ($row = $result->fetch_assoc()) {
                     if ($k === 0) {
                         $columns = array_keys($row);
-                        $data .= "INSERT INTO `{$this->prefix}{$this->table}` (".implode(",", $columns).") VALUES \n";
+                        $data .= "INSERT INTO `{$this->prefix}{$this->table}` (" . implode(",", $columns) . ") VALUES \n";
                     }
-                    $rowArr[] = "(".implode(',', array_map(function ($str) {
+                    $rowArr[] = "(" . implode(',', array_map(function ($str) {
                         $str = str_replace(array("\n", "\r", "\t"), '', $str);
                         return "'{$str}'";
-                    }, $row)).")";
+                    }, $row)) . ")";
                     $k++;
                 }
 
-                $data .= implode(",\n", $rowArr).";";
+                $data .= implode(",\n", $rowArr) . ";";
                 $data .= "\n\nUNLOCK TABLES;\n\n";
             }
 

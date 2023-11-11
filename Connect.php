@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Wazabii MySqli - Funktion
  * Version: 3.0
@@ -7,9 +8,9 @@
 
 namespace PHPFuse\Query;
 
-use mysqli;
-use mysqli_result;
 use PHPFuse\Query\Exceptions\ConnectException;
+use PHPFuse\Query\Interfaces\AttrInterface;
+use mysqli;
 
 class Connect
 {
@@ -18,7 +19,7 @@ class Connect
     private $pass;
     private $dbname;
     private $charset = "utf8mb4";
-
+    private static $self;
     private static $prefix;
     private static $selectedDB;
     private static $mysqlVars;
@@ -29,6 +30,16 @@ class Connect
         $this->user = $user;
         $this->pass = $pass;
         $this->dbname = $dbname;
+        self::$self = $this;
+    }
+
+    /**
+     * Get current instance
+     * @return self
+     */
+    public static function inst(): self
+    {
+        return self::$self;
     }
 
     /**
@@ -58,21 +69,12 @@ class Connect
         self::$selectedDB = new mysqli($this->server, $this->user, $this->pass, $this->dbname);
         if (mysqli_connect_error()) {
             die('Failed to connect to MySQL: ' . mysqli_connect_error());
-            throw new ConnectException('Failed to connect to MySQL: '.mysqli_connect_error(), 1);
+            throw new ConnectException('Failed to connect to MySQL: ' . mysqli_connect_error(), 1);
         }
         if (!is_null($this->charset) && !mysqli_set_charset(self::$selectedDB, $this->charset)) {
-            throw new ConnectException("Error loading character set ".$this->charset.": ".mysqli_error(self::$selectedDB), 2);
+            throw new ConnectException("Error loading character set " . $this->charset . ": " . mysqli_error(self::$selectedDB), 2);
         }
         mysqli_character_set_name(self::$selectedDB);
-    }
-
-    /**
-     * Get current instance
-     * @return self
-     */
-    public static function inst(): self
-    {
-        return static::$self;
     }
 
     /**
@@ -104,9 +106,9 @@ class Connect
     /**
      * Query sql string
      * @param  string $sql
-     * @return mysqli_result|bool
+     * @return object|array|bool
      */
-    public static function query(string $sql): mysqli_result|bool
+    public static function query(string $sql): object|array|bool
     {
         return static::DB()->query($sql);
     }
@@ -242,12 +244,12 @@ class Connect
         while ($row = $result->fetch_object()) {
             $dur = round($row->Duration, 4) * 1000;
             $totalDur += $dur;
-            $output .= $row->Query_ID.' - <strong>'.$dur.' ms</strong> - '.$row->Query."<br>\n";
+            $output .= $row->Query_ID . ' - <strong>' . $dur . ' ms</strong> - ' . $row->Query . "<br>\n";
         }
         $total = round($totalDur, 4);
 
         if ($html) {
-            $output .= "Total: ".$total." ms\n";
+            $output .= "Total: " . $total . " ms\n";
             $output .= "</p>";
             return $output;
         } else {
@@ -255,11 +257,11 @@ class Connect
         }
     }
 
-     /**
-     * Create Mysql variable
-     * @param string $key   Variable key
-     * @param string $value Variable value
-     */
+    /**
+    * Create Mysql variable
+    * @param string $key   Variable key
+    * @param string $value Variable value
+    */
     public static function setVariable(string $key, string $value): AttrInterface
     {
         $escapedVarName = self::withAttr("@{$key}", ["enclose" => false, "encode" => false]);
@@ -277,7 +279,7 @@ class Connect
     public static function getVariable(string $key): AttrInterface
     {
         if (!self::hasVariable($key)) {
-            throw new DBQueryException("DB MySQL variable is not set.", 1);
+            throw new ConnectException("DB MySQL variable is not set.", 1);
         }
         return self::withAttr("@{$key}", ["enclose" => false, "encode" => false]);
     }
@@ -289,7 +291,7 @@ class Connect
     public static function getVariableValue(string $key): string
     {
         if (!self::hasVariable($key)) {
-            throw new DBQueryException("DB MySQL variable is not set.", 1);
+            throw new ConnectException("DB MySQL variable is not set.", 1);
         }
         return self::$mysqlVars[$key]->enclose(false)->encode(false);
     }

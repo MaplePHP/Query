@@ -1,25 +1,22 @@
 <?php
+
 /**
  * Wazabii DB - For main queries
  */
 
 namespace PHPFuse\Query;
 
-use PHPFuse\Query\Helpers\Attr;
-
 use PHPFuse\Query\Interfaces\AttrInterface;
 use PHPFuse\Query\Interfaces\MigrateInterface;
 use PHPFuse\Query\Interfaces\DBInterface;
 use PHPFuse\Query\Exceptions\DBValidationException;
 use PHPFuse\Query\Exceptions\DBQueryException;
+use PHPFuse\Query\Helpers\Attr;
 
 class DB extends AbstractDB implements DBInterface
 {
-    
     private $method;
     private $explain;
-
-    
     private $where;
     private $having;
     private $set = [];
@@ -36,7 +33,7 @@ class DB extends AbstractDB implements DBInterface
     private $viewName;
     private $sql;
     private $dynamic;
-    
+
 
     /**
      * It is a semi-dynamic method builder that expects certain types of objects to be setted
@@ -49,14 +46,14 @@ class DB extends AbstractDB implements DBInterface
         if (count($args) > 0) {
             $defaultArgs = $args;
             $table = array_pop($args);
-            $inst = static::table($table);
+            $inst = self::table($table);
             $inst->method = $method;
 
             switch ($inst->method) {
                 case 'select':
                 case 'selectView':
                     if ($inst->method === "selectView") {
-                        $inst->table = static::VIEW_PREFIX_NAME."_".$inst->table;
+                        $inst->table = static::VIEW_PREFIX_NAME . "_" . $inst->table;
                     }
                     $col = explode(",", $args[0]);
                     call_user_func_array([$inst, "columns"], $col);
@@ -64,13 +61,13 @@ class DB extends AbstractDB implements DBInterface
                     break;
                 case 'createView':
                 case 'replaceView':
-                    $inst->viewName = Connect::prefix().static::VIEW_PREFIX_NAME."_".
+                    $inst->viewName = Connect::prefix() . static::VIEW_PREFIX_NAME . "_" .
                     attr::value($defaultArgs[0])->enclose(false);
                     $inst->sql = $defaultArgs[1];
                     break;
                 case 'dropView':
                 case 'showView':
-                    $inst->viewName = Connect::prefix().static::VIEW_PREFIX_NAME."_".
+                    $inst->viewName = Connect::prefix() . static::VIEW_PREFIX_NAME . "_" .
                     attr::value($defaultArgs[0])->enclose(false);
                     break;
                 default:
@@ -78,7 +75,7 @@ class DB extends AbstractDB implements DBInterface
                     break;
             }
         } else {
-            $inst = new static();
+            $inst = new self();
         }
         return $inst;
     }
@@ -140,8 +137,8 @@ class DB extends AbstractDB implements DBInterface
             $mig = new WhitelistMigration($data);
             $data = $mig->getTable();
         }
-        
-        $inst = new static();
+
+        $inst = new self();
         $data = $inst->sperateAlias($data);
         $inst->alias = $data['alias'];
         $inst->table = Attr::value($data['table'])->enclose(false);
@@ -163,8 +160,8 @@ class DB extends AbstractDB implements DBInterface
         if (!is_null($args)) {
             foreach ($args as $method => $args) {
                 if (!method_exists($inst, $method)) {
-                    throw new DBValidationException("The Query Attr method \"".
-                        Attr::value($method)->enclose(false)."\" does not exists!", 1);
+                    throw new DBValidationException("The Query Attr method \"" .
+                        Attr::value($method)->enclose(false) . "\" does not exists!", 1);
                 }
                 $inst = call_user_func_array([$inst, $method], (!is_array($args) ? [$args] : $args));
             }
@@ -182,11 +179,11 @@ class DB extends AbstractDB implements DBInterface
         $join = $this->buildJoin();
         $where = $this->buildWhere("WHERE", $this->where);
         $having = $this->buildWhere("HAVING", $this->having);
-        $order = (!is_null($this->order)) ? " ORDER BY ".implode(",", $this->order) : "";
+        $order = (!is_null($this->order)) ? " ORDER BY " . implode(",", $this->order) : "";
         $limit = $this->buildLimit();
 
-        $this->sql = "{$this->explain}SELECT {$this->noCache}{$this->calRows}{$this->distinct}{$columns} FROM ".
-        $this->getTable(true)."{$join}{$where}{$this->group}{$having}{$order}{$limit}{$this->union}";
+        $this->sql = "{$this->explain}SELECT {$this->noCache}{$this->calRows}{$this->distinct}{$columns} FROM " .
+        $this->getTable(true) . "{$join}{$where}{$this->group}{$having}{$order}{$limit}{$this->union}";
 
         return $this;
     }
@@ -206,8 +203,8 @@ class DB extends AbstractDB implements DBInterface
      */
     protected function insert(): self
     {
-        $this->sql = "{$this->explain}INSERT INTO ".$this->getTable()." ".
-        $this->buildInsertSet().$this->buildDuplicate();
+        $this->sql = "{$this->explain}INSERT INTO " . $this->getTable() . " " .
+        $this->buildInsertSet() . $this->buildDuplicate();
         return $this;
     }
 
@@ -221,8 +218,8 @@ class DB extends AbstractDB implements DBInterface
         $where = $this->buildWhere("WHERE", $this->where);
         $limit = $this->buildLimit();
 
-        $this->sql = "{$this->explain}UPDATE ".$this->getTable()."{$join} SET ".
-        $this->buildUpdateSet()."{$where}{$limit}";
+        $this->sql = "{$this->explain}UPDATE " . $this->getTable() . "{$join} SET " .
+        $this->buildUpdateSet() . "{$where}{$limit}";
         return $this;
     }
 
@@ -240,7 +237,7 @@ class DB extends AbstractDB implements DBInterface
         $where = $this->buildWhere("WHERE", $this->where);
         $limit = $this->buildLimit();
 
-        $this->sql = "{$this->explain}DELETE{$linkedTables} FROM ".$this->getTable()."{$join}{$where}{$limit}";
+        $this->sql = "{$this->explain}DELETE{$linkedTables} FROM " . $this->getTable() . "{$join}{$where}{$limit}";
         return $this;
     }
 
@@ -251,7 +248,7 @@ class DB extends AbstractDB implements DBInterface
     protected function createView(): self
     {
         //$this->select();
-        $this->sql = "CREATE VIEW ".$this->viewName." AS {$this->sql}";
+        $this->sql = "CREATE VIEW " . $this->viewName . " AS {$this->sql}";
         return $this;
     }
 
@@ -262,7 +259,7 @@ class DB extends AbstractDB implements DBInterface
     protected function replaceView(): self
     {
         //$this->select();
-        $this->sql = "CREATE OR REPLACE VIEW ".$this->viewName." AS {$this->sql}";
+        $this->sql = "CREATE OR REPLACE VIEW " . $this->viewName . " AS {$this->sql}";
         return $this;
     }
 
@@ -272,7 +269,7 @@ class DB extends AbstractDB implements DBInterface
      */
     protected function dropView(): self
     {
-        $this->sql = "DROP VIEW ".$this->viewName;
+        $this->sql = "DROP VIEW " . $this->viewName;
         return $this;
     }
 
@@ -282,7 +279,7 @@ class DB extends AbstractDB implements DBInterface
      */
     protected function showView(): self
     {
-        $this->sql = "SHOW CREATE VIEW ".$this->viewName;
+        $this->sql = "SHOW CREATE VIEW " . $this->viewName;
         return $this;
     }
 
@@ -405,6 +402,7 @@ class DB extends AbstractDB implements DBInterface
         }
         $this->resetWhere();
         $this->having[$this->whereIndex][$this->whereAnd][] = $this->sprint($sql, $arr);
+        return $this;
     }
 
     /**
@@ -477,7 +475,7 @@ class DB extends AbstractDB implements DBInterface
         if (!is_null($this->mig) && !$this->mig->columns($columns)) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
-        $this->group = " GROUP BY ".implode(",", $this->prepArr($columns));
+        $this->group = " GROUP BY " . implode(",", $this->prepArr($columns));
         return $this;
     }
 
@@ -524,7 +522,7 @@ class DB extends AbstractDB implements DBInterface
                 $out = $this->sprint($where, $sprint);
             }
             $type = $this->joinTypes(strtoupper($type)); // Whitelist
-            $this->join[] = "{$type} JOIN {$prefix}{$table}{$alias} ON ".$out;
+            $this->join[] = "{$type} JOIN {$prefix}{$table}{$alias} ON " . $out;
             $this->joinedTables[$table] = "{$prefix}{$table}";
         }
 
@@ -634,7 +632,7 @@ class DB extends AbstractDB implements DBInterface
     {
         $this->order = null;
         $this->limit = null;
-        $this->union = " UNION ".($allowDuplicate ? "ALL " : "").$inst->select()->sql();
+        $this->union = " UNION " . ($allowDuplicate ? "ALL " : "") . $inst->select()->sql();
         return $this;
     }
 
@@ -677,7 +675,7 @@ class DB extends AbstractDB implements DBInterface
     {
         if (!is_null($this->dupSet)) {
             $set = (count($this->dupSet) > 0) ? $this->dupSet : $this->set;
-            return " ON DUPLICATE KEY UPDATE ".$this->buildUpdateSet($set);
+            return " ON DUPLICATE KEY UPDATE " . $this->buildUpdateSet($set);
         }
         return "";
     }
@@ -696,7 +694,7 @@ class DB extends AbstractDB implements DBInterface
             $index = 0;
             foreach ($where as $array) {
                 $firstAnd = key($array);
-                $out .= (($index > 0) ? " {$firstAnd}" : "")." (";
+                $out .= (($index > 0) ? " {$firstAnd}" : "") . " (";
                 $out .= $this->whereArrToStr($array);
                 $out .= ")";
                 $index++;
@@ -711,7 +709,7 @@ class DB extends AbstractDB implements DBInterface
      */
     private function buildJoin(): string
     {
-        return (count($this->join) > 0) ? " ".implode(" ", $this->join) : "";
+        return (count($this->join) > 0) ? " " . implode(" ", $this->join) : "";
     }
 
     /**
@@ -736,14 +734,14 @@ class DB extends AbstractDB implements DBInterface
             $inst = (!is_null($this->dynamic)) ? call_user_func_array($this->dynamic[0], $this->dynamic[1]) : $this->{$this->method}();
 
             if (is_null($inst->sql)) {
-                throw new DBQueryException("The Method \"{$inst->method}\" expect to return a sql ".
+                throw new DBQueryException("The Method \"{$inst->method}\" expect to return a sql " .
                     "building method (like return @select() or @insert()).", 1);
             }
         } else {
             if (is_null($this->sql)) {
                 $method = is_null($this->method) ? "NULL" : $this->method;
-                throw new DBQueryException("Method \"{$method}\" does not exists! You need to create a method that with ".
-                    "same name as static, that will build the query you are after. ".
+                throw new DBQueryException("Method \"{$method}\" does not exists! You need to create a method that with " .
+                    "same name as static, that will build the query you are after. " .
                     "Take a look att method @method->select.", 1);
             }
         }

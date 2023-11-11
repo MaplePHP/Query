@@ -1,7 +1,9 @@
 <?php
+
 /**
  * Wazabii DB - For main queries
  */
+
 namespace PHPFuse\Query;
 
 use PHPFuse\Query\Helpers\Attr;
@@ -96,7 +98,7 @@ abstract class AbstractDB
     public function getTable(bool $withAlias = false): string
     {
         $alias = ($withAlias && !is_null($this->alias)) ? " {$this->alias}" : "";
-        return Connect::prefix().$this->table.$alias;
+        return Connect::prefix() . $this->table . $alias;
     }
 
     /**
@@ -110,7 +112,7 @@ abstract class AbstractDB
         }
         return $this->columns;
     }
-    
+
 
     /**
      * Will reset Where input
@@ -173,7 +175,7 @@ abstract class AbstractDB
     {
         if (is_array($data)) {
             if (count($data) !== 2) {
-                throw new DBQueryException("If you specify Table as array then it should look ".
+                throw new DBQueryException("If you specify Table as array then it should look " .
                     "like this [TABLE_NAME, ALIAS]", 1);
             }
             $alias = array_pop($data);
@@ -367,22 +369,22 @@ abstract class AbstractDB
             if (isset($row['fk'])) {
                 foreach ($row['fk'] as $a) {
                     if ($a['table'] === (string)$this->table) {
-                        $joinArr[] = "{$type} JOIN ".$prefix.$mig->getTable()." ".$mig->getTable().
-                        " ON (".$mig->getTable().".{$col} = {$a['table']}.{$a['column']})";
+                        $joinArr[] = "{$type} JOIN " . $prefix . $mig->getTable() . " " . $mig->getTable() .
+                        " ON (" . $mig->getTable() . ".{$col} = {$a['table']}.{$a['column']})";
                     }
                 }
             } else {
                 foreach ($main as $c => $a) {
                     foreach ($a as $t => $d) {
                         if (in_array($col, $d)) {
-                            $joinArr[] = "{$type} JOIN ".$prefix.$mig->getTable()." ".$mig->getTable().
+                            $joinArr[] = "{$type} JOIN " . $prefix . $mig->getTable() . " " . $mig->getTable() .
                             " ON ({$t}.{$col} = {$this->alias}.{$c})";
                         }
                     }
                 }
             }
 
-            $this->joinedTables[$mig->getTable()] = $prefix.$mig->getTable();
+            $this->joinedTables[$mig->getTable()] = $prefix . $mig->getTable();
         }
         return $joinArr;
     }
@@ -421,6 +423,4 @@ abstract class AbstractDB
         }
         return $query;
     }
-
-    
 }
