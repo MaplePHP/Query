@@ -18,6 +18,7 @@ class Connect
     private $user;
     private $pass;
     private $dbname;
+    private $charSetName;
     private $charset = "utf8mb4";
     private static $self;
     private static $prefix;
@@ -68,13 +69,12 @@ class Connect
     {
         self::$selectedDB = new mysqli($this->server, $this->user, $this->pass, $this->dbname);
         if (mysqli_connect_error()) {
-            die('Failed to connect to MySQL: ' . mysqli_connect_error());
             throw new ConnectException('Failed to connect to MySQL: ' . mysqli_connect_error(), 1);
         }
-        if (!is_null($this->charset) && !mysqli_set_charset(self::$selectedDB, $this->charset)) {
+        if (!mysqli_set_charset(self::$selectedDB, $this->charset)) {
             throw new ConnectException("Error loading character set " . $this->charset . ": " . mysqli_error(self::$selectedDB), 2);
         }
-        mysqli_character_set_name(self::$selectedDB);
+        $this->charSetName = mysqli_character_set_name(self::$selectedDB);
     }
 
     /**
@@ -92,6 +92,15 @@ class Connect
     public function getDBName(): string
     {
         return $this->dbname;
+    }
+
+    /**
+     * Get current Character set
+     * @return string|null
+     */
+    public function getCharSetName(): ?string
+    {
+        return $this->charSetName;
     }
 
     /**
@@ -125,7 +134,7 @@ class Connect
 
     /**
      * Select a new database
-     * @param  string      $DB
+     * @param  string      $databaseName
      * @param  string|null $prefix Expected table prefix (NOT database prefix)
      * @return void
      */
@@ -179,7 +188,7 @@ class Connect
 
     /**
      * Start Transaction
-     * @return Transaction instance. You can use instance to call: inst->rollback() OR inst->commit()
+     * @return mysqli
      */
     public static function beginTransaction()
     {

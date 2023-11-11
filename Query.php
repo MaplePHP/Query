@@ -33,7 +33,6 @@ class Query
         } else {
             throw new ConnectException(Connect::DB()->error, 1);
         }
-        return false;
     }
 
     /**
@@ -59,7 +58,7 @@ class Query
 
     /**
      * Execute SELECT and fetch as array with nested objects
-     * @param  function $callback callaback, make changes in query and if return then change key
+     * @param  callable|null $callback callaback, make changes in query and if return then change key
      * @return array
      */
     final public function fetch(?callable $callback = null): array

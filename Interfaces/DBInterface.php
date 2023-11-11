@@ -32,7 +32,7 @@ interface DBInterface
     /**
      * Raw Mysql Where input
      * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
-     * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
+     * @param  string    $sql     SQL string example: (id = %d AND permalink = '%s')
      * @param  array     $arr     Mysql prep values
      * @return self
      */
@@ -68,7 +68,7 @@ interface DBInterface
     /**
      * Raw Mysql HAVING input
      * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
-     * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
+     * @param  string    $sql     SQL string example: (id = %d AND permalink = '%s')
      * @param  array     $arr     Mysql prep values
      * @return self
      */
@@ -101,7 +101,7 @@ interface DBInterface
     /**
      * Raw Mysql ORDER input
      * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
-     * @param  string    $str     SQL string example: (id ASC, parent DESC)
+     * @param  string    $sql     SQL string example: (id ASC, parent DESC)
      * @param  array     $arr     Mysql prep values
      * @return self
      */
@@ -110,7 +110,7 @@ interface DBInterface
 
     /**
      * Add group
-     * @param  spread $columns
+     * @param  mixed $columns
      * @return self
      */
     public function group(...$columns): self;

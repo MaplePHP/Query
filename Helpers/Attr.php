@@ -21,7 +21,7 @@ class Attr implements AttrInterface
      * Process string after your choises
      * @return string
      */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->getValue();
     }
@@ -100,10 +100,10 @@ class Attr implements AttrInterface
 
     /**
      * If Request[key] is array then auto convert it to json to make it database ready
-     * @param  bool $yes = true
+     * @param  bool $jsonEncode
      * @return self
      */
-    public function jsonEncode(bool $jsonEncode = true): self
+    public function jsonEncode(bool $jsonEncode): self
     {
         $this->jsonEncode = $jsonEncode;
         return $this;

@@ -10,6 +10,7 @@ use PHPFuse\Query\Helpers\Attr;
 use PHPFuse\Query\Handlers\MySqliHandler;
 use PHPFuse\Query\Interfaces\AttrInterface;
 use PHPFuse\Query\Interfaces\MigrateInterface;
+use PHPFuse\Query\Interfaces\DBInterface;
 use PHPFuse\Query\Exceptions\DBValidationException;
 use PHPFuse\Query\Exceptions\DBQueryException;
 
@@ -84,7 +85,7 @@ abstract class AbstractDB
 
     /**
      * Access Mysql DB connection
-     * @return query\connect
+     * @return \mysqli
      */
     public function connect()
     {
@@ -168,11 +169,13 @@ abstract class AbstractDB
 
     /**
      * Sperate Alias
-     * @param  array  $data
+     * @param  string|array  $data
      * @return array
      */
     final protected function sperateAlias(string|array $data): array
     {
+        $alias = null;
+        $table = $data;
         if (is_array($data)) {
             if (count($data) !== 2) {
                 throw new DBQueryException("If you specify Table as array then it should look " .
@@ -180,11 +183,7 @@ abstract class AbstractDB
             }
             $alias = array_pop($data);
             $table = reset($data);
-        } else {
-            $alias = null;
-            $table = $data;
         }
-
         return ["alias" => $alias, "table" => $table];
     }
 
@@ -262,12 +261,11 @@ abstract class AbstractDB
 
     /**
      * Mysql Prep/protect array items
-     * @param  array        $arr
-     * @param  bool|boolean $enclose Auto enclose?
-     * @param  bool|boolean $trim    Auto trime
+     * @param  array    $arr
+     * @param  bool     $enclose
      * @return array
      */
-    final protected function prepArr(array $arr, bool $enclose = true)
+    final protected function prepArr(array $arr, bool $enclose = true): array
     {
         $new = array();
         foreach ($arr as $k => $v) {
@@ -419,7 +417,6 @@ abstract class AbstractDB
                 return call_user_func_array([$query, $method], $args);
             }
             throw new DBQueryException("Method \"{$method}\" does not exists!", 1);
-            return false;
         }
         return $query;
     }

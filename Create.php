@@ -213,9 +213,9 @@ class Create
      * The array argument will act as a history. If you first renamed table to
      * "test1" it might still be named "test" cross domains.
      * Thats is why ever change should persist as a history.
-     * @return slef
+     * @return self
      */
-    public function rename(array $arr)
+    public function rename(array $arr): self
     {
         if (!is_null($this->sql)) {
             throw new QueryCreateException("The rename method has to be the FIRST method to be called!", 1);
@@ -418,7 +418,8 @@ class Create
                         $this->add[$col] .= "MODIFY `{$col}` {$attr}";
                     }
                 } else {
-                    if ($drop = $this->dropColumn()) {
+                    //if ($drop = $this->dropColumn()) {
+                    if ($this->dropColumn()) {
                         if (isset($this->keys[$col])) {
                             unset($this->keys[$col]);
                         }
@@ -449,7 +450,8 @@ class Create
     private function setPrimary()
     {
         if (count($this->primaryKeys) > 0) {
-            if ($keys = $this->tbKeys()) {
+            //if ($keys = $this->tbKeys()) {
+            if ($this->tbKeys()) {
                 $this->add[] = "DROP PRIMARY KEY";
             }
 
@@ -552,7 +554,7 @@ class Create
 
     /**
      * Index lookup
-     * @return int|effected rows
+     * @return array
      */
     private function tbKeys(): array
     {
@@ -772,7 +774,7 @@ class Create
                         $sql .= "ON UPDATE {$arr['update']};\n ";
 
                         if (count($this->fkList) > 0) {
-                            foreach ($this->fkList as $key => $row) {
+                            foreach ($this->fkList as $key => $_notUsedRow) {
                                 $sql .= "\nALTER TABLE `{$this->table}` DROP FOREIGN KEY `{$key}`;\n\n";
                             }
                         }
@@ -790,19 +792,15 @@ class Create
         switch ($val) {
             case 'CASCADE':
                 return $val;
-                break;
             case 'SET_NULL':
-                return "SET NULL";
-                break;
+                return $val;
             case 'NO_ACTION':
-                return "NO ACTION";
-                break;
+                return $val;
             case 'RESTRICT':
                 return $val;
-                break;
+            default:
+                return null;
         }
-
-        return null;
     }
 
     /**
@@ -851,7 +849,7 @@ class Create
                         unset($arr[$index]);
                     }
                     if (count($arr) > 0) {
-                        foreach ($tbKeys[$a] as $b => $col) {
+                        foreach ($tbKeys[$a] as $col) {
                             $sqlKeyArr[] = "DROP INDEX `{$col}`";
                         }
                     }
@@ -882,7 +880,7 @@ class Create
             throw new \Exception($conn->error, 1);
         }
 
-        $conn->close();
+        //$conn->close();
     }
 
     private function buildAI()

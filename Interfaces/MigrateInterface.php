@@ -7,13 +7,15 @@
 
 namespace PHPFuse\Query\Interfaces;
 
+use PHPFuse\Query\Create;
+
 interface MigrateInterface
 {
     /**
      * Get build data and
      * @return Create
      */
-    public function getBuild();
+    public function getBuild(): Create;
 
     /**
      * Will drop table when method execute is triggered

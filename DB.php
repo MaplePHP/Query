@@ -119,9 +119,8 @@ class DB extends AbstractDB implements DBInterface
                 break;
             default:
                 return $this->query($this, $method, $args);
-                break;
         }
-        return $this;
+        //return $this;
     }
 
     /**
@@ -324,7 +323,7 @@ class DB extends AbstractDB implements DBInterface
     /**
      * Raw Mysql Where input
      * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
-     * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
+     * @param  string    $sql     SQL string example: (id = %d AND permalink = '%s')
      * @param  array     $arr     Mysql prep values
      * @return self
      */
@@ -391,7 +390,7 @@ class DB extends AbstractDB implements DBInterface
     /**
      * Raw Mysql HAVING input
      * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
-     * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
+     * @param  string    $sql     SQL string example: (id = %d AND permalink = '%s')
      * @param  array     $arr     Mysql prep values
      * @return self
      */
@@ -452,7 +451,7 @@ class DB extends AbstractDB implements DBInterface
     /**
      * Raw Mysql ORDER input
      * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
-     * @param  string    $str     SQL string example: (id ASC, parent DESC)
+     * @param  string    $sql     SQL string example: (id ASC, parent DESC)
      * @param  array     $arr     Mysql prep values
      * @return self
      */
@@ -467,7 +466,7 @@ class DB extends AbstractDB implements DBInterface
 
     /**
      * Add group
-     * @param  spread $columns
+     * @param  array $columns
      * @return self
      */
     public function group(...$columns): self
@@ -485,7 +484,7 @@ class DB extends AbstractDB implements DBInterface
      * @param  array|array                      $where  Where data (as array or string e.g. string is raw)
      * @param  array                            $sprint Use sprint to prep data
      * @param  string                           $type   Type of join
-     * @return [type]                   [description]
+     * @return self
      */
     public function join(
         string|array|MigrateInterface $table,
@@ -519,6 +518,7 @@ class DB extends AbstractDB implements DBInterface
                 }
                 $out = $this->buildWhere("", $data);
             } else {
+                /** @var string $where */
                 $out = $this->sprint($where, $sprint);
             }
             $type = $this->joinTypes(strtoupper($type)); // Whitelist

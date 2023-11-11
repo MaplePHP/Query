@@ -47,8 +47,8 @@ interface AttrInterface
 
     /**
      * If Request[key] is array then auto convert it to json to make it database ready
-     * @param  bool $yes = true
+     * @param  bool $jsonEncode = true
      * @return self
      */
-    public function jsonEncode(bool $jsonEncode = true): self;
+    public function jsonEncode(bool $jsonEncode): self;
 }
