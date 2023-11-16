@@ -10,6 +10,7 @@ namespace PHPFuse\Query;
 
 use PHPFuse\Query\Exceptions\ConnectException;
 use PHPFuse\Query\Interfaces\AttrInterface;
+use PHPFuse\Query\Helpers\Attr;
 use mysqli;
 
 class Connect
@@ -273,8 +274,8 @@ class Connect
     */
     public static function setVariable(string $key, string $value): AttrInterface
     {
-        $escapedVarName = self::withAttr("@{$key}", ["enclose" => false, "encode" => false]);
-        $escapedValue = (($value instanceof AttrInterface) ? $value : self::withAttr($value));
+        $escapedVarName = Attr::value("@{$key}")->enclose(false)->encode(false);
+        $escapedValue = (($value instanceof AttrInterface) ? $value : Attr::value($value));
 
         self::$mysqlVars[$key] = clone $escapedValue;
         Connect::query("SET {$escapedVarName} = {$escapedValue}");
@@ -290,7 +291,7 @@ class Connect
         if (!self::hasVariable($key)) {
             throw new ConnectException("DB MySQL variable is not set.", 1);
         }
-        return self::withAttr("@{$key}", ["enclose" => false, "encode" => false]);
+        return Attr::value("@{$key}")->enclose(false)->encode(false);
     }
 
     /**

@@ -14,7 +14,10 @@ use PHPFuse\Query\Interfaces\DBInterface;
 use PHPFuse\Query\Exceptions\DBValidationException;
 use PHPFuse\Query\Exceptions\DBQueryException;
 
-abstract class AbstractDB
+/**
+ * @psalm-taint-source
+ */
+abstract class AbstractDB implements DBInterface
 {
     // Whitelists
     protected const OPERATORS = [">", ">=", "<", "<>", "!=", "<=", "<=>"]; // Comparison operators
@@ -189,11 +192,11 @@ abstract class AbstractDB
 
     /**
      * Propegate where data structure
-     * @param string|AttrInterface $key
-     * @param string|AttrInterface $val
-     * @param array|null &$data static value
+     * @param string|AttrInterface           $key
+     * @param string|int|float|AttrInterface $val
+     * @param array|null                     &$data static value
      */
-    final protected function setWhereData(string|AttrInterface $key, string|AttrInterface $val, ?array &$data): void
+    final protected function setWhereData(string|AttrInterface $key, string|int|float|AttrInterface $val, ?array &$data): void
     {
         $key = (string)$this->prep($key, false);
         $val = $this->prep($val);
@@ -227,29 +230,11 @@ abstract class AbstractDB
     }
 
     /**
-     * Enclose value
-     * @param  string        $val
-     * @param  bool|boolean  $enclose disbale enclose
-     * @return string
-     */
-    final protected function enclose(string|AttrInterface $val, bool $enclose = true): self
-    {
-        if ($val instanceof AttrInterface) {
-            return $val;
-        }
-        if ($enclose) {
-            return "'{$val}'";
-        }
-        return $val;
-    }
-
-
-    /**
      * Mysql Prep/protect string
-     * @param  string $val
-     * @return string
+     * @param  mixed $val
+     * @return AttrInterface
      */
-    final protected function prep(string|array|AttrInterface $val, bool $enclose = true): AttrInterface
+    final protected function prep(mixed $val, bool $enclose = true): AttrInterface
     {
         if ($val instanceof AttrInterface) {
             return $val;
@@ -268,11 +253,9 @@ abstract class AbstractDB
     final protected function prepArr(array $arr, bool $enclose = true): array
     {
         $new = array();
-        foreach ($arr as $k => $v) {
-            $key = (string)$this->prep($k, false);
-            //$v = $this->prep($v, $enclose);
-            //$value = $this->enclose($v, $enclose);
-            $new[$key] = (string)$this->prep($v, $enclose);
+        foreach ($arr as $pKey => $pVal) {
+            $key = (string)$this->prep($pKey, false);
+            $new[$key] = (string)$this->prep($pVal, $enclose);
         }
         return $new;
     }
@@ -281,7 +264,7 @@ abstract class AbstractDB
      * Use vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
      * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
      * @param  array     $arr     Mysql prep values
-     * @return self
+     * @return string
      */
     final protected function sprint(string $str, array $arr = array()): string
     {
@@ -311,10 +294,7 @@ abstract class AbstractDB
      */
     final protected function extractCamelCase(string $value): array
     {
-        $arr = array();
-        if (is_string($value)) {
-            $arr = preg_split('#([A-Z][^A-Z]*)#', $value, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-        }
+        $arr = preg_split('#([A-Z][^A-Z]*)#', $value, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
         return $arr;
     }
 
@@ -362,27 +342,28 @@ abstract class AbstractDB
         $main = $this->getMainFKData();
         $data = $mig->getData();
         $this->mig->mergeData($data);
+        $migTable = $mig->getTable();
 
         foreach ($data as $col => $row) {
             if (isset($row['fk'])) {
                 foreach ($row['fk'] as $a) {
                     if ($a['table'] === (string)$this->table) {
-                        $joinArr[] = "{$type} JOIN " . $prefix . $mig->getTable() . " " . $mig->getTable() .
-                        " ON (" . $mig->getTable() . ".{$col} = {$a['table']}.{$a['column']})";
+                        $joinArr[] = "{$type} JOIN " . $prefix . $migTable . " " . $migTable .
+                        " ON (" . $migTable . ".{$col} = {$a['table']}.{$a['column']})";
                     }
                 }
             } else {
                 foreach ($main as $c => $a) {
                     foreach ($a as $t => $d) {
                         if (in_array($col, $d)) {
-                            $joinArr[] = "{$type} JOIN " . $prefix . $mig->getTable() . " " . $mig->getTable() .
+                            $joinArr[] = "{$type} JOIN " . $prefix . $migTable . " " . $migTable .
                             " ON ({$t}.{$col} = {$this->alias}.{$c})";
                         }
                     }
                 }
             }
 
-            $this->joinedTables[$mig->getTable()] = $prefix . $mig->getTable();
+            $this->joinedTables[$migTable] = $prefix . $migTable;
         }
         return $joinArr;
     }
@@ -404,10 +385,10 @@ abstract class AbstractDB
 
     /**
      * Query result
-     * @param  DBInterface $sql
-     * @param  string      $method
-     * @param  array       $args
-     * @return Query
+     * @param  string|self $sql
+     * @param  string|null $method
+     * @param  array $args
+     * @return array|object|bool
      */
     final protected function query(string|self $sql, ?string $method = null, array $args = []): array|object|bool
     {

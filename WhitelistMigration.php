@@ -118,7 +118,7 @@ class WhitelistMigration
         // Key is assosiated with a Internal MySQL variable then return that
         // value to check if the variable type is of the right type
         if (Connect::hasVariable($key)) {
-            $value = (string)Connect::getVariableValue($key);
+            $value = Connect::getVariableValue($key);
         }
 
         if (!isset($this->data[$key])) {

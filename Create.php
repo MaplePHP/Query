@@ -164,7 +164,7 @@ class Create
     {
 
         if ($this->tableExists($this->table)) {
-            $this->alter($this->table);
+            $this->alter();
         } else {
             $this->create();
         }
@@ -309,8 +309,8 @@ class Create
 
     /**
      * Add primary keys
-     * @param  array  $colArr [description]
-     * @return [type]         [description]
+     * @param  array  $colArr
+     * @return self
      */
     public function primary(array $colArr): self
     {
@@ -588,9 +588,9 @@ class Create
 
     /**
      * Drop column
-     * @return string
+     * @return string|null
      */
-    public function dropColumn()
+    public function dropColumn(): ?string
     {
         return (!is_null($this->args['drop']) && $this->args['drop'] === true) ? "DROP COLUMN" : null;
     }
@@ -606,9 +606,9 @@ class Create
 
     /**
      * Will rename column
-     * @return string
+     * @return string|null
      */
-    public function renameColumn()
+    public function renameColumn(): ?string
     {
         if ($rename = $this->hasRename()) {
             $rename = end($rename);
@@ -626,9 +626,9 @@ class Create
 
     /**
      * Sets AI
-     * @return string
+     * @return string|null
      */
-    public function ai()
+    public function ai(): ?string
     {
         $ai = (!is_null($this->args['ai']) && $this->args['ai'] !== false) ? "AUTO_INCREMENT" : null;
         if ($ai) {
@@ -658,9 +658,9 @@ class Create
 
     /**
      * Sets character and text collation
-     * @return [type] [description]
+     * @return string|null
      */
-    public function collation()
+    public function collation(): ?string
     {
         if ($this->args['collate']) {
             if ($this->args['collate'] === true) {
@@ -673,18 +673,18 @@ class Create
 
     /**
      * Sets NULL
-     * @return string
+     * @return string|null
      */
-    public function null()
+    public function null(): ?string
     {
         return ($this->args['null']) ? null : "NOT NULL";
     }
 
     /**
      * Sets default value
-     * @return string
+     * @return string|null
      */
-    public function default()
+    public function default(): ?string
     {
         return (!is_null($this->args['default']) && $this->args['default'] !== false) ? "DEFAULT '" .
         Connect::prep($this->args['default']) . "'" : null;
@@ -692,9 +692,9 @@ class Create
 
     /**
      * Sets Mysql Attributes
-     * @return string
+     * @return string|null
      */
-    public function attributes()
+    public function attributes(): ?string
     {
         if (!is_null($this->args['attr'])) {
             $this->args['attr'] = strtoupper($this->args['attr']);
@@ -709,9 +709,9 @@ class Create
 
     /**
      * Sets index
-     * @return string
+     * @return string|null
      */
-    public function index()
+    public function index(): ?string
     {
         if (!is_null($this->args['index'])) {
             if ($this->args['index'] !== 0) {

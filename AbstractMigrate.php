@@ -33,7 +33,7 @@ abstract class AbstractMigrate implements MigrateInterface
 
     /**
      * Get build data and
-     * @return Create
+     * @return string
      */
     public function getTable(): string
     {
@@ -42,7 +42,7 @@ abstract class AbstractMigrate implements MigrateInterface
 
     /**
      * Will drop table when method execute is triggered
-     * @return void
+     * @return array
      */
     public function drop(): array
     {

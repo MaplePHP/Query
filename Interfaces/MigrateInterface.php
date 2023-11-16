@@ -18,8 +18,14 @@ interface MigrateInterface
     public function getBuild(): Create;
 
     /**
+     * Get build data and
+     * @return string
+     */
+    public function getTable(): string;
+
+    /**
      * Will drop table when method execute is triggered
-     * @return void
+     * @return array
      */
     public function drop(): array;
 

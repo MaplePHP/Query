@@ -1,8 +1,5 @@
 <?php
-
-/**
- * Wazabii DB - For main queries
- */
+declare(strict_types=1);
 
 namespace PHPFuse\Query;
 
@@ -13,7 +10,7 @@ use PHPFuse\Query\Exceptions\DBValidationException;
 use PHPFuse\Query\Exceptions\DBQueryException;
 use PHPFuse\Query\Helpers\Attr;
 
-class DB extends AbstractDB implements DBInterface
+class DB extends AbstractDB
 {
     private $method;
     private $explain;
@@ -84,7 +81,7 @@ class DB extends AbstractDB implements DBInterface
      * Used to make methods into dynamic shortcuts
      * @param  string $method
      * @param  array $args
-     * @return self
+     * @return mixed
      */
     public function __call($method, $args)
     {
@@ -120,7 +117,7 @@ class DB extends AbstractDB implements DBInterface
             default:
                 return $this->query($this, $method, $args);
         }
-        //return $this;
+        return $this;
     }
 
     /**
@@ -150,7 +147,7 @@ class DB extends AbstractDB implements DBInterface
 
     /**
      * Access Query Attr class
-     * @param  array  $value
+     * @param  string|array  $value
      * @return AttrInterface
      */
     public static function withAttr(string|array $value, ?array $args = null): AttrInterface
@@ -341,11 +338,11 @@ class DB extends AbstractDB implements DBInterface
      * Create protected MySQL WHERE input
      * Supports dynamic method name calls like: whereIdStatus(1, 0)
      * @param  string      $key      Mysql column
-     * @param  string      $val      Equals to value
+     * @param  string|int|float|AttrInterface      $val      Equals to value
      * @param  string|null $operator Change comparison operator from default "=".
      * @return self
      */
-    public function where(string|AttrInterface $key, string|AttrInterface $val, ?string $operator = null): self
+    public function where(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self
     {
         // Whitelist operator
         if (!is_null($operator)) {
@@ -374,11 +371,11 @@ class DB extends AbstractDB implements DBInterface
     /**
      * Create protected MySQL HAVING input
      * @param  string      $key      Mysql column
-     * @param  string      $val      Equals to value
+     * @param  string|int|float|AttrInterface      $val      Equals to value
      * @param  string|null $operator Change comparison operator from default "=".
      * @return self
      */
-    public function having(string|AttrInterface $key, string|AttrInterface $val, ?string $operator = null): self
+    public function having(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self
     {
         if (!is_null($operator)) {
             $this->compare = $this->operator($operator);
@@ -412,9 +409,9 @@ class DB extends AbstractDB implements DBInterface
      */
     public function limit(int $limit, ?int $offset = null): self
     {
-        $this->limit = (int)$limit;
+        $this->limit = $limit;
         if (!is_null($offset)) {
-            $this->offset = (int)$offset;
+            $this->offset = $offset;
         }
         return $this;
     }
@@ -426,7 +423,7 @@ class DB extends AbstractDB implements DBInterface
      */
     public function offset(int $offset): self
     {
-        $this->offset = (int)$offset;
+        $this->offset = $offset;
         return $this;
     }
 
@@ -481,7 +478,7 @@ class DB extends AbstractDB implements DBInterface
     /**
      * Mysql JOIN query (Default: INNER)
      * @param  string|array|MigrateInterface    $table  Mysql table name (if array e.g. [TABLE_NAME, ALIAS]) or MigrateInterface instance
-     * @param  array|array                      $where  Where data (as array or string e.g. string is raw)
+     * @param  array|string                     $where  Where data (as array or string e.g. string is raw)
      * @param  array                            $sprint Use sprint to prep data
      * @param  string                           $type   Type of join
      * @return self
@@ -518,7 +515,6 @@ class DB extends AbstractDB implements DBInterface
                 }
                 $out = $this->buildWhere("", $data);
             } else {
-                /** @var string $where */
                 $out = $this->sprint($where, $sprint);
             }
             $type = $this->joinTypes(strtoupper($type)); // Whitelist
@@ -571,8 +567,8 @@ class DB extends AbstractDB implements DBInterface
 
     /**
      * Create INSERT or UPDATE set Mysql input to insert
-     * @param  string|array  $key    (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
-     * @param  string|null   $value  If key is string then value will pair with key "Lorem ipsum"
+     * @param  string|array|AttrInterface $key   (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
+     * @param  string|array|AttrInterface $value If key is string then value will pair with key "Lorem ipsum"
      * @return self
      */
     public function set(string|array|AttrInterface $key, string|array|AttrInterface $value = null): self
@@ -626,12 +622,14 @@ class DB extends AbstractDB implements DBInterface
      * @param  DBInterface  $inst
      * @param  bool         $allowDuplicate  UNION by default selects only distinct values.
      *                                       Use UNION ALL to also select duplicate values!
+     * @mixin AbstractDB
      * @return self
      */
     public function union(DBInterface $inst, bool $allowDuplicate = false): self
     {
         $this->order = null;
         $this->limit = null;
+        /** @psalm-suppress UndefinedInterfaceMethod */
         $this->union = " UNION " . ($allowDuplicate ? "ALL " : "") . $inst->select()->sql();
         return $this;
     }
@@ -705,7 +703,7 @@ class DB extends AbstractDB implements DBInterface
 
     /**
      * Build joins
-     * @return [type] [description]
+     * @return string
      */
     private function buildJoin(): string
     {
@@ -747,7 +745,6 @@ class DB extends AbstractDB implements DBInterface
         }
     }
 
-
     /**
      * Genrate SQL string of current instance/query
      * @return string
@@ -765,7 +762,7 @@ class DB extends AbstractDB implements DBInterface
     public static function getUUID(): ?string
     {
         if ($result = Connect::query("SELECT UUID()")) {
-            if ($result && $result->num_rows > 0) {
+            if ($result->num_rows > 0) {
                 $row = $result->fetch_row();
                 return ($row[0] ?? null);
             }
@@ -777,9 +774,9 @@ class DB extends AbstractDB implements DBInterface
 
     /**
      * Get insert AI ID from prev inserted result
-     * @return int
+     * @return int|string
      */
-    public function insertID()
+    public function insertID(): int|string
     {
         return Connect::DB()->insert_id;
     }

@@ -15,7 +15,6 @@ class Attr implements AttrInterface
     private $enclose = true;
     private $jsonEncode = true;
     private $encode = true;
-    //private $mysqlVar = false;
 
     /**
      * Process string after your choises
@@ -26,7 +25,11 @@ class Attr implements AttrInterface
         return $this->getValue();
     }
 
-    public function getValue(): float|int|string
+    /**
+     * Get value
+     * @return string
+     */
+    public function getValue(): string
     {
 
         if (!$this->hasBeenEncoded) {
@@ -56,7 +59,7 @@ class Attr implements AttrInterface
 
     /**
      * Get raw data from instance
-     * @return string|array|null
+     * @return string|array
      */
     public function getRaw(): string|array
     {

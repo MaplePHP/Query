@@ -87,9 +87,9 @@ class Query
 
     /**
      * Get insert AI ID from prev inserted result
-     * @return int
+     * @return string|int
      */
-    public function insertID()
+    public function insertID(): string|int
     {
         return Connect::DB()->insert_id;
     }

@@ -12,7 +12,7 @@ interface AttrInterface
 
     /**
      * Get raw data from instance
-     * @return string|array|null
+     * @return string|array
      */
     public function getRaw(): string|array;
 

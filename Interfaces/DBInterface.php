@@ -42,11 +42,11 @@ interface DBInterface
      * Create protected MySQL WHERE input
      * Supports dynamic method name calls like: whereIdStatus(1, 0)
      * @param  string      $key      Mysql column
-     * @param  string      $val      Equals to value
+     * @param  string|int|float|AttrInterface      $val      Equals to value
      * @param  string|null $operator Change comparison operator from default "=".
      * @return self
      */
-    public function where(string|AttrInterface $key, string|AttrInterface $val, ?string $operator = null): self;
+    public function where(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self;
 
 
     /**
@@ -59,11 +59,11 @@ interface DBInterface
     /**
      * Create protected MySQL HAVING input
      * @param  string      $key      Mysql column
-     * @param  string      $val      Equals to value
+     * @param  string|int|float|AttrInterface      $val      Equals to value
      * @param  string|null $operator Change comparison operator from default "=".
      * @return self
      */
-    public function having(string|AttrInterface $key, string|AttrInterface $val, ?string $operator = null): self;
+    public function having(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self;
 
     /**
      * Raw Mysql HAVING input
@@ -119,10 +119,10 @@ interface DBInterface
     /**
      * Mysql JOIN query (Default: INNER)
      * @param  string|array|MigrateInterface    $table  Mysql table name (if array e.g. [TABLE_NAME, ALIAS]) or MigrateInterface instance
-     * @param  array|array                      $where  Where data (as array or string e.g. string is raw)
+     * @param  array|string                     $where  Where data (as array or string e.g. string is raw)
      * @param  array                            $sprint Use sprint to prep data
      * @param  string                           $type   Type of join
-     * @return [type]                   [description]
+     * @return self
      */
     public function join(string|array|MigrateInterface $table, string|array $where = null, array $sprint = array(), string $type = "INNER"): self;
 
@@ -143,8 +143,8 @@ interface DBInterface
 
     /**
      * Create INSERT or UPDATE set Mysql input to insert
-     * @param  string|array  $key    (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
-     * @param  string|null   $value  If key is string then value will pair with key "Lorem ipsum"
+     * @param  string|array|AttrInterface $key   (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
+     * @param  string|array|AttrInterface $value If key is string then value will pair with key "Lorem ipsum"
      * @return self
      */
     public function set(string|array|AttrInterface $key, string|array|AttrInterface $value = null): self;
@@ -174,4 +174,10 @@ interface DBInterface
      * @return self
      */
     public function union(DBInterface $inst, bool $allowDuplicate = false): self;
+
+    /**
+     * Genrate SQL string of current instance/query
+     * @return string
+     */
+    public function sql(): string;
 }
