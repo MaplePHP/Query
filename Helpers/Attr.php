@@ -17,6 +17,27 @@ class Attr implements AttrInterface
     private $encode = true;
 
     /**
+     * Initiate the instance
+     * @param  array|string|int|float $value
+     */
+    public function __construct($value)
+    {
+        $this->value = $value;
+        $this->raw = $value;
+    }
+
+    /**
+     * Initiate the instance
+     * @param  array|string|int|float $value
+     * @return self
+     */
+    public static function value(array|string|int|float $value): self
+    {
+        $inst = new self($value);
+        return $inst;
+    }
+
+    /**
      * Process string after your choises
      * @return string
      */
@@ -26,7 +47,9 @@ class Attr implements AttrInterface
     }
 
     /**
-     * Get value
+     * Will escape and encode values the right way buy the default
+     * If prepped then quotes will be escaped and not encoded
+     * If prepped is diabled then quotes will be encoded
      * @return string
      */
     public function getValue(): string
@@ -41,7 +64,7 @@ class Attr implements AttrInterface
                         $val = Connect::prep($val);
                     }
                     return $val;
-                })->get();
+                }, ($this->prep ? ENT_NOQUOTES : ENT_QUOTES))->get();
             } else {
                 if ($this->prep) {
                     $this->value = Connect::prep($this->value);
@@ -64,19 +87,6 @@ class Attr implements AttrInterface
     public function getRaw(): string|array
     {
         return $this->raw;
-    }
-
-    /**
-     * Initiate the instance
-     * @param  string $value
-     * @return self
-     */
-    public static function value(array|string|int|float $value): self
-    {
-        $inst = new self();
-        $inst->value = $value;
-        $inst->raw = $value;
-        return $inst;
     }
 
     /**

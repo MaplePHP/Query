@@ -30,6 +30,13 @@ interface DBInterface
     public function or(): self;
 
     /**
+     * Access Query Attr class
+     * @param  array|string|int|float  $value
+     * @return AttrInterface
+     */
+    public static function withAttr(array|string|int|float $value, ?array $args = null): AttrInterface;
+
+    /**
      * Raw Mysql Where input
      * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
      * @param  string    $sql     SQL string example: (id = %d AND permalink = '%s')
@@ -174,6 +181,16 @@ interface DBInterface
      * @return self
      */
     public function union(DBInterface $inst, bool $allowDuplicate = false): self;
+
+    /**
+     * Union raw result, create union with raw SQL code
+     * @param  string  $sql
+     * @param  bool    $allowDuplicate  UNION by default selects only distinct values.
+     *                                  Use UNION ALL to also select duplicate values!
+     * @mixin AbstractDB
+     * @return self
+     */
+    public function unionRaw(string $sql, bool $allowDuplicate = false): self;
 
     /**
      * Genrate SQL string of current instance/query

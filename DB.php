@@ -31,12 +31,11 @@ class DB extends AbstractDB
     private $sql;
     private $dynamic;
 
-
     /**
      * It is a semi-dynamic method builder that expects certain types of objects to be setted
      * @param  string $method
      * @param  array $args
-     * @return static
+     * @return self
      */
     public static function __callStatic($method, $args)
     {
@@ -45,7 +44,6 @@ class DB extends AbstractDB
             $table = array_pop($args);
             $inst = self::table($table);
             $inst->method = $method;
-
             switch ($inst->method) {
                 case 'select':
                 case 'selectView':
@@ -54,18 +52,17 @@ class DB extends AbstractDB
                     }
                     $col = explode(",", $args[0]);
                     call_user_func_array([$inst, "columns"], $col);
-
                     break;
                 case 'createView':
                 case 'replaceView':
-                    $inst->viewName = Connect::prefix() . static::VIEW_PREFIX_NAME . "_" .
-                    attr::value($defaultArgs[0])->enclose(false);
+                    $encodeArg1 = $inst->getAttr($defaultArgs[0])->enclose(false);
+                    $inst->viewName = Connect::prefix() . static::VIEW_PREFIX_NAME . "_" . $encodeArg1;
                     $inst->sql = $defaultArgs[1];
                     break;
                 case 'dropView':
                 case 'showView':
-                    $inst->viewName = Connect::prefix() . static::VIEW_PREFIX_NAME . "_" .
-                    attr::value($defaultArgs[0])->enclose(false);
+                    $encodeArg1 = $inst->getAttr($defaultArgs[0])->enclose(false);
+                    $inst->viewName = Connect::prefix() . static::VIEW_PREFIX_NAME . "_" . $encodeArg1;
                     break;
                 default:
                     $inst->dynamic = [[$inst, $inst->method], $args];
@@ -85,10 +82,8 @@ class DB extends AbstractDB
      */
     public function __call($method, $args)
     {
-
         $camelCaseArr = $this->extractCamelCase($method);
         $shift = array_shift($camelCaseArr);
-
         switch ($shift) {
             case "pluck": // Columns??
                 if (is_array($args[0] ?? null)) {
@@ -137,7 +132,7 @@ class DB extends AbstractDB
         $inst = new self();
         $data = $inst->sperateAlias($data);
         $inst->alias = $data['alias'];
-        $inst->table = Attr::value($data['table'])->enclose(false);
+        $inst->table = $inst->getAttr($data['table'])->enclose(false);
         $inst->mig = $mig;
         if (is_null($inst->alias)) {
             $inst->alias = $inst->table;
@@ -147,17 +142,17 @@ class DB extends AbstractDB
 
     /**
      * Access Query Attr class
-     * @param  string|array  $value
+     * @param  array|string|int|float  $value
      * @return AttrInterface
      */
-    public static function withAttr(string|array $value, ?array $args = null): AttrInterface
+    public static function withAttr(array|string|int|float $value, ?array $args = null): AttrInterface
     {
-        $inst = Attr::value($value);
+        $inst = new self();
+        $inst = $inst->getAttr($value);
         if (!is_null($args)) {
             foreach ($args as $method => $args) {
                 if (!method_exists($inst, $method)) {
-                    throw new DBValidationException("The Query Attr method \"" .
-                        Attr::value($method)->enclose(false) . "\" does not exists!", 1);
+                    throw new DBValidationException("The Query Attr method \"" .htmlspecialchars($method, ENT_QUOTES). "\" does not exists!", 1);
                 }
                 $inst = call_user_func_array([$inst, $method], (!is_array($args) ? [$args] : $args));
             }
@@ -471,7 +466,7 @@ class DB extends AbstractDB
         if (!is_null($this->mig) && !$this->mig->columns($columns)) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
-        $this->group = " GROUP BY " . implode(",", $this->prepArr($columns));
+        $this->group = " GROUP BY " . implode(",", $this->prepArr($columns, false));
         return $this;
     }
 
@@ -627,10 +622,22 @@ class DB extends AbstractDB
      */
     public function union(DBInterface $inst, bool $allowDuplicate = false): self
     {
+        return $this->unionRaw($inst->sql(), $allowDuplicate);
+    }
+
+     /**
+     * Union raw result, create union with raw SQL code
+     * @param  string  $sql
+     * @param  bool    $allowDuplicate  UNION by default selects only distinct values.
+     *                                  Use UNION ALL to also select duplicate values!
+     * @mixin AbstractDB
+     * @return self
+     */
+    public function unionRaw(string $sql, bool $allowDuplicate = false): self
+    {
         $this->order = null;
         $this->limit = null;
-        /** @psalm-suppress UndefinedInterfaceMethod */
-        $this->union = " UNION " . ($allowDuplicate ? "ALL " : "") . $inst->select()->sql();
+        $this->union = " UNION " . ($allowDuplicate ? "ALL " : "") . $sql;
         return $this;
     }
 
@@ -757,11 +764,13 @@ class DB extends AbstractDB
 
     /**
      * Get return a new generated UUID
+     * DEPRECATED: Will be moved to Connect for starter
      * @return null|string
      */
     public static function getUUID(): ?string
     {
-        if ($result = Connect::query("SELECT UUID()")) {
+        $result = Connect::query("SELECT UUID()");
+        if (is_object($result)) {
             if ($result->num_rows > 0) {
                 $row = $result->fetch_row();
                 return ($row[0] ?? null);

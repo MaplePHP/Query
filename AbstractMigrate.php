@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace PHPFuse\Query;
 
@@ -16,6 +17,9 @@ abstract class AbstractMigrate implements MigrateInterface
     {
         if (is_null($prefix)) {
             $prefix = getenv("MYSQL_PREFIX");
+            if ($prefix === false) {
+                throw new \Exception("Table prefix is required!", 1);
+            }
         }
         $this->mig = new Create($table, $prefix);
         $this->table = $table;

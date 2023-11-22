@@ -1,8 +1,5 @@
 <?php
-
-/**
- * Wazabii DB - For main queries
- */
+declare(strict_types=1);
 
 namespace PHPFuse\Query;
 
@@ -117,6 +114,16 @@ abstract class AbstractDB implements DBInterface
         return $this->columns;
     }
 
+    /**
+     * Get new Attr instance
+     * @param  array|string|int|float $value
+     * @return AttrInterface
+     */
+    protected function getAttr(array|string|int|float $value): AttrInterface
+    {
+        return new Attr($value);
+    }
+
 
     /**
      * Will reset Where input
@@ -198,6 +205,9 @@ abstract class AbstractDB implements DBInterface
      */
     final protected function setWhereData(string|AttrInterface $key, string|int|float|AttrInterface $val, ?array &$data): void
     {
+        if (is_null($data)) {
+            $data = array();
+        }
         $key = (string)$this->prep($key, false);
         $val = $this->prep($val);
 
@@ -239,7 +249,7 @@ abstract class AbstractDB implements DBInterface
         if ($val instanceof AttrInterface) {
             return $val;
         }
-        $val = Attr::value($val);
+        $val = $this->getAttr($val);
         $val->enclose($enclose);
         return $val;
     }

@@ -1,8 +1,5 @@
 <?php
-
-/**
- * Wazabii DB - For main queries
- */
+declare(strict_types=1);
 
 namespace PHPFuse\Query;
 
@@ -50,7 +47,8 @@ class Query
      */
     final public function obj(): bool|object
     {
-        if (($result = $this->execute()) && $result->num_rows > 0) {
+        $result = $this->execute();
+        if (is_object($result) && $result->num_rows > 0) {
             return $result->fetch_object();
         }
         return false;
@@ -66,14 +64,17 @@ class Query
         $key = 0;
         $select = null;
         $arr = array();
-
-        if (($result = $this->execute()) && $result->num_rows > 0) {
+        $result = $this->execute();
+        if (is_object($result) && $result->num_rows > 0) {
             while ($row = $result->fetch_object()) {
                 if ($callback) {
                     $select = $callback($row, $key);
                 }
                 $data = ((!is_null($select)) ? $select : $key);
                 if (is_array($data)) {
+                    if (!is_array($select)) {
+                        throw new \InvalidArgumentException("The return value of the callable needs to be an array!", 1);
+                    }
                     $arr = array_replace_recursive($arr, $select);
                 } else {
                     $arr[$data] = $row;

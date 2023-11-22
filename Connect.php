@@ -1,10 +1,5 @@
 <?php
-
-/**
- * Wazabii MySqli - Funktion
- * Version: 3.0
- * Copyright: All right reserved for Creative Army
- */
+declare(strict_types=1);
 
 namespace PHPFuse\Query;
 
@@ -251,7 +246,8 @@ class Connect
         if ($html) {
             $output .= "<p style=\"color: red;\">";
         }
-        while ($row = $result->fetch_object()) {
+
+        if (is_object($result)) while ($row = $result->fetch_object()) {
             $dur = round($row->Duration, 4) * 1000;
             $totalDur += $dur;
             $output .= $row->Query_ID . ' - <strong>' . $dur . ' ms</strong> - ' . $row->Query . "<br>\n";

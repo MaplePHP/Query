@@ -86,10 +86,7 @@ class Create
     private $rowFormat;
     private $tbKeys;
     private $tbKeysType;
-
     //private $columnData;
-
-
     private $keys = array();
     private $ai = array();
     private $fk = array();
@@ -97,8 +94,6 @@ class Create
     private $colData = array();
     private $rename = array();
     private $hasRename = array();
-
-
     private $renameTable = array();
     private $primaryKeys = array();
     private $dropPrimaryKeys = false;
@@ -132,7 +127,7 @@ class Create
 
     public function __construct(string $table, ?string $prefix = null)
     {
-        if (!is_null($this->prefix)) {
+        if (!is_null($prefix)) {
             $this->prefix = Connect::prep($prefix);
         }
         $this->charset = "utf8";
@@ -315,6 +310,9 @@ class Create
     public function primary(array $colArr): self
     {
         $colArr = $this->clean($colArr);
+        if (!is_array($colArr)) {
+            throw new QueryCreateException("Argumnet could not be converted as an array!", 1);
+        }
         $this->primaryKeys = array_merge($this->primaryKeys, $colArr);
         return $this;
     }
@@ -325,6 +323,9 @@ class Create
         if (is_array($value)) {
             return array_map([$this, 'clean'], $value);
         } else {
+            if (!is_string($value)) {
+                throw new QueryCreateException("Argumnet value is expected to be either array or string!", 1);
+            }
             $value = preg_replace("/[^a-zA-Z0-9_]/", "", $value);
             $value = trim($value);
         }
@@ -562,7 +563,7 @@ class Create
             $this->tbKeysType = $this->tbKeys = array();
             if ($this->tableExists($this->table)) {
                 $result = Connect::query("SHOW INDEXES FROM {$this->table}");
-                if ($result && $result->num_rows > 0) {
+                if (is_object($result) && $result->num_rows > 0) {
                     while ($row = $result->fetch_object()) {
                         $type = ($row->Index_type === "FULLTEXT" ||
                             $row->Index_type === "SPATIAL") ? $row->Index_type : "INDEX";
@@ -917,7 +918,7 @@ class Create
             "TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
 
         $arr = array();
-        if ($result && $result->num_rows > 0) {
+        if (is_object($result) && $result->num_rows > 0) {
             while ($row = $result->fetch_object()) {
                 $arr[$row->CONSTRAINT_NAME] = $row;
             }
@@ -934,7 +935,7 @@ class Create
             }
             $table = Connect::prep($table);
             $result = Connect::query("SHOW TABLES LIKE '{$table}'");
-            if ($result && $result->num_rows > 0) {
+            if (is_object($result) && $result->num_rows > 0) {
                 $this->tableExists = $result;
             }
         }
@@ -947,7 +948,7 @@ class Create
             $table = Connect::prep($table);
             $col = Connect::prep($col);
             $result = Connect::query("SHOW COLUMNS FROM {$table} LIKE '{$col}'");
-            if ($result && $result->num_rows > 0) {
+            if (is_object($result) && $result->num_rows > 0) {
                 return $result;
             }
         }
