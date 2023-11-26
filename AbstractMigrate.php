@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace PHPFuse\Query;
+namespace MaplePHP\Query;
 
-use PHPFuse\Query\Create;
-use PHPFuse\Query\Interfaces\MigrateInterface;
+use MaplePHP\Query\Create;
+use MaplePHP\Query\Interfaces\MigrateInterface;
 
 abstract class AbstractMigrate implements MigrateInterface
 {

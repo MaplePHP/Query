@@ -5,7 +5,7 @@
  * also be used to communicate with the DB library
  */
 
-namespace PHPFuse\Query\Interfaces;
+namespace MaplePHP\Query\Interfaces;
 
 interface DBInterface
 {

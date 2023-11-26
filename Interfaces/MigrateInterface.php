@@ -5,9 +5,9 @@
  * also be used to communicate with the DB library
  */
 
-namespace PHPFuse\Query\Interfaces;
+namespace MaplePHP\Query\Interfaces;
 
-use PHPFuse\Query\Create;
+use MaplePHP\Query\Create;
 
 interface MigrateInterface
 {

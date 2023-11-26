@@ -1,6 +1,6 @@
 <?php
 
-namespace PHPFuse\Query\Exceptions;
+namespace MaplePHP\Query\Exceptions;
 
 use Exception;
 

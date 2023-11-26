@@ -4,7 +4,7 @@
  * Wazabii DB - For main queries
  */
 
-namespace PHPFuse\Query\Handler;
+namespace MaplePHP\Query\Handler;
 
 class MySQL
 {

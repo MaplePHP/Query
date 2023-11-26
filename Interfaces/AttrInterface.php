@@ -1,6 +1,6 @@
 <?php
 
-namespace PHPFuse\Query\Interfaces;
+namespace MaplePHP\Query\Interfaces;
 
 interface AttrInterface
 {

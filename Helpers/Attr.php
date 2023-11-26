@@ -1,10 +1,10 @@
 <?php
 
-namespace PHPFuse\Query\Helpers;
+namespace MaplePHP\Query\Helpers;
 
-use PHPFuse\Query\Connect;
-use PHPFuse\Query\Interfaces\AttrInterface;
-use PHPFuse\DTO\Format\Encode;
+use MaplePHP\Query\Connect;
+use MaplePHP\Query\Interfaces\AttrInterface;
+use MaplePHP\DTO\Format\Encode;
 
 class Attr implements AttrInterface
 {

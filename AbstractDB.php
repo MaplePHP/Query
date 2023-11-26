@@ -1,15 +1,15 @@
 <?php
 declare(strict_types=1);
 
-namespace PHPFuse\Query;
+namespace MaplePHP\Query;
 
-use PHPFuse\Query\Helpers\Attr;
-use PHPFuse\Query\Handlers\MySqliHandler;
-use PHPFuse\Query\Interfaces\AttrInterface;
-use PHPFuse\Query\Interfaces\MigrateInterface;
-use PHPFuse\Query\Interfaces\DBInterface;
-use PHPFuse\Query\Exceptions\DBValidationException;
-use PHPFuse\Query\Exceptions\DBQueryException;
+use MaplePHP\Query\Helpers\Attr;
+use MaplePHP\Query\Handlers\MySqliHandler;
+use MaplePHP\Query\Interfaces\AttrInterface;
+use MaplePHP\Query\Interfaces\MigrateInterface;
+use MaplePHP\Query\Interfaces\DBInterface;
+use MaplePHP\Query\Exceptions\DBValidationException;
+use MaplePHP\Query\Exceptions\DBQueryException;
 
 /**
  * @psalm-taint-source

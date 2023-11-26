@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace PHPFuse\Query;
+namespace MaplePHP\Query;
 
-use PHPFuse\Query\Exceptions\ConnectException;
-use PHPFuse\Query\Interfaces\DBInterface;
-use PHPFuse\Query\Connect;
+use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Interfaces\DBInterface;
+use MaplePHP\Query\Connect;
 
 class Query
 {

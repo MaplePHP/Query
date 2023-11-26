@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace PHPFuse\Query;
+namespace MaplePHP\Query;
 
-use PHPFuse\Query\Interfaces\AttrInterface;
-use PHPFuse\Query\Interfaces\MigrateInterface;
-use PHPFuse\Query\Helpers\Attr;
+use MaplePHP\Query\Interfaces\AttrInterface;
+use MaplePHP\Query\Interfaces\MigrateInterface;
+use MaplePHP\Query\Helpers\Attr;
 
 class WhitelistMigration
 {

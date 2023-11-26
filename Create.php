@@ -65,9 +65,9 @@
     echo "</pre>";
 */
 
-namespace PHPFuse\Query;
+namespace MaplePHP\Query;
 
-use PHPFuse\Query\Exceptions\QueryCreateException;
+use MaplePHP\Query\Exceptions\QueryCreateException;
 
 class Create
 {

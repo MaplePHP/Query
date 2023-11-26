@@ -1,9 +1,9 @@
-# PHP Fuse - MySQL queries
-PHP Fuse - MySQL queries is a powerful yet **user friendly** and **light weight** library for making **safe** database queries.
+# MaplePHP - MySQL queries
+MaplePHP - MySQL queries is a powerful yet **user friendly** and **light weight** library for making **safe** database queries.
 
 ### Select 1:
 ```php
-use PHPFuse\Query\DB;
+use MaplePHP\Query\DB;
 
 $select = DB::select("id,firstname,lastname", "users a")->whereId(1)->where("status", 0, ">")->limit(1);
 $select->join("login b", "b.user_id = a.id");

@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace PHPFuse\Query;
+namespace MaplePHP\Query;
 
-use PHPFuse\Query\Exceptions\ConnectException;
-use PHPFuse\Query\Interfaces\AttrInterface;
-use PHPFuse\Query\Helpers\Attr;
+use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Interfaces\AttrInterface;
+use MaplePHP\Query\Helpers\Attr;
 use mysqli;
 
 class Connect
