@@ -54,6 +54,9 @@ class Connect
      */
     public static function setPrefix(string $prefix): void
     {
+        if (substr($prefix, -1) !== "_") {
+            throw new \InvalidArgumentException("The Prefix has to end with a underscore e.g. (prefix\"_\")!", 1);
+        }
         self::$prefix = $prefix;
     }
 

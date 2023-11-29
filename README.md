@@ -3,10 +3,29 @@ MaplePHP - MySQL queries is a powerful yet **user-friendly** library for making 
 
 The guide is not complete; more content will be added soon.
 
-### Select 1:
+
+## Connect to the database
+
+```php
+use MaplePHP\Query\Connect;
+
+$connect = new Connect($server, $user, $password, $databaseName);
+$connect->setCharset("utf8mb4");
+// Recommened: Set TABLE prefix. This will make your life easier
+// MaplePHP DB class will "automatically prepend" it to the table names.
+$connect->setPrefix("maple_");
+$connect->execute();
+
+```
+
+## Make queries
+Start with the namespace
 ```php
 use MaplePHP\Query\DB;
+```
 
+### Select 1:
+```php
 $select = DB::select("id,firstname,lastname", "users a")->whereId(1)->where("status", 0, ">")->limit(1);
 $select->join("login b", "b.user_id = a.id");
 $obj = $select->get(); // Get one row result as object
