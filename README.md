@@ -1,5 +1,7 @@
 # MaplePHP - MySQL queries
-MaplePHP - MySQL queries is a powerful yet **user friendly** and **light weight** library for making **safe** database queries.
+MaplePHP - MySQL queries is a powerful yet **user-friendly** library for making **safe** database queries.
+
+The guide is not complete; more content will be added soon.
 
 ### Select 1:
 ```php

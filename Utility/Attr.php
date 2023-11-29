@@ -1,6 +1,6 @@
 <?php
 
-namespace MaplePHP\Query\Helpers;
+namespace MaplePHP\Query\Utility;
 
 use MaplePHP\Query\Connect;
 use MaplePHP\Query\Interfaces\AttrInterface;

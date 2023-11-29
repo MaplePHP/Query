@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query;
 
-use MaplePHP\Query\Helpers\Attr;
+use MaplePHP\Query\Utility\Attr;
 use MaplePHP\Query\Handlers\MySqliHandler;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;

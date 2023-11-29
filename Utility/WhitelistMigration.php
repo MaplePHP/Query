@@ -1,11 +1,12 @@
 <?php
 declare(strict_types=1);
 
-namespace MaplePHP\Query;
+namespace MaplePHP\Query\Utility;
 
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;
-use MaplePHP\Query\Helpers\Attr;
+use MaplePHP\Query\Utility\Attr;
+use MaplePHP\Query\Connect;
 
 class WhitelistMigration
 {
@@ -26,7 +27,6 @@ class WhitelistMigration
     private $mig;
     private $data;
     private $message;
-    //private $key;
 
     /**
      * WhitelistMigration will take the migration files and use them to make a whitelist validation

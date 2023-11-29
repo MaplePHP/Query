@@ -70,8 +70,8 @@ abstract class AbstractMigrate implements MigrateInterface
      */
     public function read(): string
     {
+        $this->mig->auto();
         $this->buildTable();
-        $this->mig->create();
         if (!$this->mig->getColumns()) {
             throw new \Exception("There is nothing to read in migration.", 1);
         }
@@ -84,7 +84,7 @@ abstract class AbstractMigrate implements MigrateInterface
      */
     public function create(): array
     {
-        $this->mig->create();
+        $this->mig->auto();
         $this->buildTable();
         if (!$this->mig->getColumns()) {
             throw new \Exception("There is nothing to commit in migration.", 1);

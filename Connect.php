@@ -5,7 +5,7 @@ namespace MaplePHP\Query;
 
 use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\AttrInterface;
-use MaplePHP\Query\Helpers\Attr;
+use MaplePHP\Query\Utility\Attr;
 use mysqli;
 
 class Connect

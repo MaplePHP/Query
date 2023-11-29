@@ -8,7 +8,8 @@ use MaplePHP\Query\Interfaces\MigrateInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
 use MaplePHP\Query\Exceptions\DBValidationException;
 use MaplePHP\Query\Exceptions\DBQueryException;
-use MaplePHP\Query\Helpers\Attr;
+use MaplePHP\Query\Utility\Attr;
+use MaplePHP\Query\Utility\WhitelistMigration;
 
 class DB extends AbstractDB
 {
