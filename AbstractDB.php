@@ -219,7 +219,7 @@ abstract class AbstractDB implements DBInterface
         $this->whereProtocol[$key][] = $val;
         $this->resetWhere();
     }
-
+    
     /**
      * Get the Main FK data protocol
      * @return array
