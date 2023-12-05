@@ -764,6 +764,41 @@ class DB extends AbstractDB
     }
 
     /**
+     * Start Transaction
+     * @return mysqli
+     */
+    public static function beginTransaction()
+    {
+        Connect::DB()->begin_transaction();
+        return Connect::DB();
+    }
+
+
+    // Same as @beginTransaction
+    public static function transaction()
+    {
+        return self::beginTransaction();
+    }
+
+    /**
+     * Commit transaction
+     * @return void
+     */
+    public static function commit(): void
+    {
+        Connect::DB()->commit();
+    }
+
+    /**
+     * Rollback transaction
+     * @return void
+     */
+    public static function rollback(): void
+    {
+        Connect::DB()->rollback();
+    }
+
+    /**
      * Get return a new generated UUID
      * DEPRECATED: Will be moved to Connect for starter
      * @return null|string
