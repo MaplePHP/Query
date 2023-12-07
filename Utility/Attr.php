@@ -54,25 +54,29 @@ class Attr implements AttrInterface
      */
     public function getValue(): string
     {
-
         if (!$this->hasBeenEncoded) {
             $this->hasBeenEncoded = true;
-
             if ($this->encode) {
+                // I will rather escape qoutes then encode them in prep is on
                 $this->value = Encode::value($this->value)->encode(function ($val) {
-                    if ($this->prep) {
-                        $val = Connect::prep($val);
-                    }
                     return $val;
                 }, ($this->prep ? ENT_NOQUOTES : ENT_QUOTES))->get();
+
             } else {
-                if ($this->prep) {
+                if (is_string($this->value)) {
                     $this->value = Connect::prep($this->value);
                 }
             }
-            if (is_array($this->value)) {
-                $this->value = json_encode($this->value);
+            if ($this->jsonEncode && is_array($this->value)) {
+                // If prep is on then escape after json_encode, 
+                // otherwise json encode will possibly escape the escaped value
+                $this->value = json_encode($this->value, JSON_UNESCAPED_SLASHES);
             }
+
+            if($this->prep) {
+                $this->value = Connect::prep($this->value);
+            }
+
             if ($this->enclose) {
                 $this->value = "'{$this->value}'";
             }
