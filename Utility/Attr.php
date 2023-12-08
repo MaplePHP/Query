@@ -55,24 +55,19 @@ class Attr implements AttrInterface
     public function getValue(): string
     {
         if (!$this->hasBeenEncoded) {
+            
             $this->hasBeenEncoded = true;
-            if ($this->encode) {
-                // I will rather escape qoutes then encode them in prep is on
-                $this->value = Encode::value($this->value)->encode(function ($val) {
-                    return $val;
-                }, ($this->prep ? ENT_NOQUOTES : ENT_QUOTES))->get();
-
-            } else {
-                if (is_string($this->value)) {
-                    $this->value = Connect::prep($this->value);
-                }
-            }
+            $this->value = Encode::value($this->value)
+                ->specialChar($this->encode, ($this->prep ? ENT_NOQUOTES : ENT_QUOTES))
+                ->urlEncode(false)
+                ->encode();
+                                
             if ($this->jsonEncode && is_array($this->value)) {
                 // If prep is on then escape after json_encode, 
                 // otherwise json encode will possibly escape the escaped value
-                $this->value = json_encode($this->value, JSON_UNESCAPED_SLASHES);
+                $this->value = json_encode($this->value);
             }
-
+            
             if($this->prep) {
                 $this->value = Connect::prep($this->value);
             }
@@ -136,22 +131,4 @@ class Attr implements AttrInterface
         $this->encode = $encode;
         return $this;
     }
-
-    /**
-     * // DEPRECATED
-     * If Request[key] is array then auto convert it to json to make it database ready
-     * @param  bool $yes = true
-     * @return self
-     */
-    /*
-    function mysqlVar(bool $mysqlVar = true): self
-    {
-        $this->mysqlVar = $mysqlVar;
-        $this->enclose = false;
-        $this->jsonEncode = false;
-        $this->encode = false;
-        $this->prep = false;
-        return $this;
-    }
-     */
 }
