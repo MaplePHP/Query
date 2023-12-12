@@ -314,6 +314,16 @@ class DB extends AbstractDB
     }
 
     /**
+     * Chaining with where "NOT"
+     * @return self
+     */
+    public function not(): self
+    {
+        $this->whereNot = true;
+        return $this;
+    }
+
+    /**
      * Raw Mysql Where input
      * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
      * @param  string    $sql     SQL string example: (id = %d AND permalink = '%s')

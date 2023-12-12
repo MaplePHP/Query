@@ -27,6 +27,7 @@ abstract class AbstractDB implements DBInterface
     protected $mig;
     protected $compare = "=";
     protected $whereAnd = "AND";
+    protected $whereNot = false;
     protected $whereIndex = 0;
     protected $whereProtocol = [];
     protected $fkData;
@@ -215,9 +216,48 @@ abstract class AbstractDB implements DBInterface
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
 
-        $data[$this->whereIndex][$this->whereAnd][$this->compare][$key][] = $val;
+        //$data[$this->whereIndex][$this->whereAnd][$this->compare][$key][] = $val;
+        $data[$this->whereIndex][$this->whereAnd][$key][] = [
+            "not" => $this->whereNot,
+            "operator" => $this->compare,
+            "value" => $val
+        ];
+
         $this->whereProtocol[$key][] = $val;
         $this->resetWhere();
+    }
+
+    /**
+     * Build Where data
+     * @param  array $array
+     * @return string
+     */
+    final protected function whereArrToStr(array $array): string
+    {
+        $out = "";
+        $count = 0;
+        foreach ($array as $key => $arr) {
+            foreach ($arr as $col => $a) {
+                if (is_array($a)) {
+                    foreach ($a as $int => $row) {
+                        if ($count > 0) {
+                            $out .= "{$key} ";
+                        }
+                        if ($row['not'] === true) {
+                            $out .= "NOT ";
+                        }
+                        $out .= "{$col} {$row['operator']} {$row['value']} ";
+                        $count++;
+                    }
+                    
+                } else {
+                    $out .= "{$key} {$a} ";
+                    $count++;
+                }
+            }
+        }
+
+        return $out;
     }
     
     /**
@@ -306,37 +346,6 @@ abstract class AbstractDB implements DBInterface
     {
         $arr = preg_split('#([A-Z][^A-Z]*)#', $value, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
         return $arr;
-    }
-
-    /**
-     * Build Where data
-     * @param  array $array
-     * @return string
-     */
-    final protected function whereArrToStr(array $array): string
-    {
-        $out = "";
-        $count = 0;
-        foreach ($array as $key => $arr) {
-            foreach ($arr as $operator => $a) {
-                if (is_array($a)) {
-                    foreach ($a as $col => $b) {
-                        foreach ($b as $val) {
-                            if ($count > 0) {
-                                $out .= "{$key} ";
-                            }
-                            $out .= "{$col} {$operator} {$val} ";
-                            $count++;
-                        }
-                    }
-                } else {
-                    $out .= "{$key} {$a} ";
-                    $count++;
-                }
-            }
-        }
-
-        return $out;
     }
 
     /**

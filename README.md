@@ -1,8 +1,12 @@
+
 # MaplePHP - MySQL queries
 MaplePHP - MySQL queries is a powerful yet **user-friendly** library for making **safe** database queries.
 
-The guide is not complete; more content will be added soon.
-
+### Contents
+- [Connect to the database](#connect-to-the-database)
+- [Make queries](#make-queries)
+- [Attributes](#attributes)
+- *Migrations (Coming soon)*
 
 ## Connect to the database
 
@@ -41,11 +45,14 @@ $select->where("id", 1); // id = '1'
 $select->where("parent", 0, ">");  // parent > '1'
 ```
 ### Where 2
+"compare", "or"/"and" and "not".
 ```php 
 $select->whereRoleStatusParent(1, 1, 0);  
 // role = '1' AND status = '1' AND Parent = 0
 $select->compare(">")->whereStatus(0)->or()->whereRole(1);
 // status > '0' OR role = '1'
+$select->not()->whereId(1)->whereEmail("john.doe@gmail.com");
+// NOT id = '1' AND email = 'john.doe@gmail.com'
 ```
 ### Where 3
 ```php 
@@ -63,7 +70,7 @@ $select->whereRaw("status = %d AND visible = %d", [1, 1]);
 // PROTECTED: status = 1 AND visible = 1
 ```
 ### Having
-Having command works the same as where command above with exception that you rename "where" in method to "having" and @havingBind do not exist. 
+Having command works the same as where command above with exception that you rename "where" method to "having" and that the method "havingBind" do not exist. 
 ```php 
 $select->having("id", 1); // id = '1'
 $select->having("parent", 0, ">");  // parent > '1'
@@ -88,7 +95,7 @@ $select->order("id", "ASC")->order("parent", "DESC");
 $select->orderRaw("id ASC, parent DESC"); 
 // ORDER BY id ASC, parent DESC
 ```
-### Limit
+### Join
 ```php 
 $select->join("tableName", "b.user_id = a.id"); // Default INNER join
 $select->join("tableName", "b.user_id = '%d'", [872], "LEFT"); // PROTECTED INPUT
@@ -134,3 +141,52 @@ $select->setRaw("msg_id", "UUID()");
 ```php 
 echo $select->sql();
 ```
+
+## Attributes
+Each value is automatically escaped by default in the most effective manner to ensure consequential and secure data storage, guarding against SQL injection vulnerabilities. While it's possible to exert complete control over SQL input using various **Raw** methods, such an approach is not advisable due to the potential for mistakes that could introduce vulnerabilities. A safer alternative is to leverage the **Attr** class. The **Attr** class offers comprehensive configuration capabilities for nearly every value in the DB library, as illustrated below:
+```php 
+$idValue = DB::withAttr("1")
+    ->prep(true)
+    ->enclose(true)
+    ->encode(true)
+    ->jsonEncode(true);
+    
+$select->where("id",  $idValue);
+```
+#### Escape values and protect against SQL injections
+```php 
+public function prep(bool $prep): self;
+```
+**Example:**
+- Input value: Lorem "ipsum" dolor
+- Output value: Lorem \\"ipsum\\" dolor
+
+#### Enable/disable string enclose
+```php 
+public function enclose(bool $enclose): self;
+```
+**Example:**
+- Input value:  1186
+- Output value: '1186'
+*E.g. will add or remove quotes to values*
+
+#### Enable/disable XSS protection
+Some like to have the all the database data already HTML special character escaped.
+```php 
+public function encode(bool $encode): self;
+```
+**Example:**
+- Input value: Lorem <strong>ipsum</strong> dolor
+- Output value:  Lorem \<strong\>ipsum\</strong\> dolor
+
+#### Automatically json encode array data
+A pragmatic function that will automatically encode all array input data to a json string
+```php 
+public function jsonEncode(bool $jsonEncode): self;
+```
+**Example:**
+- Input value: array("firstname" => "John", "lastname" => "Doe");
+- Output value:  {"firstname":"John","lastname":"Doe"}
+
+The default values vary based on whether it is a table column, a condition in a WHERE clause, or a value to be set. For instance, columns default to enclose set to false, whereas for WHERE or SET inputs, it defaults to true. Regardless, every value defaults to **prep**, **encode** and **jsonEncode** being set to **true**.
+
