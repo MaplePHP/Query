@@ -21,7 +21,6 @@ $connect->setPrefix("maple_");
 $connect->execute();
 
 ```
-
 ## Make queries
 Start with the namespace
 ```php
@@ -30,10 +29,12 @@ use MaplePHP\Query\DB;
 
 ### Select 1:
 ```php
-$select = DB::select("id,firstname,lastname", "users a")->whereId(1)->where("status", 0, ">")->limit(1);
-$select->join("login b", "b.user_id = a.id");
+$select = DB::select("id,firstname,lastname", ["users", "aliasA"])->whereId(1)->where("status", 0, ">")->limit(1);
+$select->join(["login", "aliasB"], "aliasB.user_id = aliasA.id");
 $obj = $select->get(); // Get one row result as object
 ```
+*Default alias will be the table name e.g. users and login if they were not overwritten.*
+
 ### Select 2:
 ```php
 $select = DB::select("id,name,content", "pages")->whereStatusParent(1, 0);
@@ -97,12 +98,14 @@ $select->orderRaw("id ASC, parent DESC");
 ```
 ### Join
 ```php 
-$select->join("tableName", "b.user_id = a.id"); // Default INNER join
+$select->join(["login", "aliasB"], ["aliasB.user_id" => "aliasA.id"]); // PROTECTED INPUT
 $select->join("tableName", "b.user_id = '%d'", [872], "LEFT"); // PROTECTED INPUT
-$select->joinInner("tableName", "b.user_id = a.id");
-$select->joinLeft("tableName", "b.user_id = a.id");
-$select->joinRight("tableName", "b.user_id = a.id");
-$select->joinCross("tableName", "b.user_id = a.id");
+$select->join("tableName", "b.user_id = a.id"); // "UNPROTECTED" INPUT
+
+$select->joinInner("tableName", ["b.user_id" => "a.id"]);
+$select->joinLeft("tableName", ["b.user_id" => "a.id"]);
+$select->joinRight("tableName", ["b.user_id" => "a.id"]);
+$select->joinCross("tableName", ["b.user_id" => "a.id"]);
 ```
 ### Insert
 ```php 

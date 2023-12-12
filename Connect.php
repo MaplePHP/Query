@@ -17,7 +17,7 @@ class Connect
     private $charSetName;
     private $charset = "utf8mb4";
     private static $self;
-    private static $prefix;
+    private static $prefix = "";
     private static $selectedDB;
     private static $mysqlVars;
 
@@ -54,7 +54,7 @@ class Connect
      */
     public static function setPrefix(string $prefix): void
     {
-        if (substr($prefix, -1) !== "_") {
+        if (strlen($prefix) > 0 && substr($prefix, -1) !== "_") {
             throw new \InvalidArgumentException("The Prefix has to end with a underscore e.g. (prefix\"_\")!", 1);
         }
         self::$prefix = $prefix;
