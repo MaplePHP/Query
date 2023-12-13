@@ -335,8 +335,8 @@ class DB extends AbstractDB
         if (is_array($arr[0] ?? null)) {
             $arr = $arr[0];
         }
-        $this->resetWhere();
         $this->where[$this->whereIndex][$this->whereAnd][] = $this->sprint($sql, $arr);
+        $this->resetWhere();
         return $this;
     }
 
@@ -402,8 +402,8 @@ class DB extends AbstractDB
         if (is_array($arr[0] ?? null)) {
             $arr = $arr[0];
         }
-        $this->resetWhere();
         $this->having[$this->whereIndex][$this->whereAnd][] = $this->sprint($sql, $arr);
+        $this->resetWhere();
         return $this;
     }
 
@@ -495,7 +495,6 @@ class DB extends AbstractDB
         array $sprint = array(),
         string $type = "INNER"
     ): self {
-
         if ($table instanceof MigrateInterface) {
             $this->join = array_merge($this->join, $this->buildJoinFromMig($table, $type));
         } else {
@@ -512,10 +511,16 @@ class DB extends AbstractDB
                 $data = array();
                 foreach ($where as $key => $val) {
                     if (is_array($val)) {
-                        foreach ($val as $k => $v) {
-                            $this->setWhereData($k, $v, $data);
+                        foreach ($val as $grpKey => $grpVal) {
+                            if(!($grpVal instanceof AttrInterface)) {
+                                $grpVal = $this::withAttr($grpVal)->enclose(false);
+                            }
+                            $this->setWhereData($grpKey, $grpVal, $data);
                         }
                     } else {
+                        if(!($val instanceof AttrInterface)) {
+                            $val = $this::withAttr($val)->enclose(false);
+                        }
                         $this->setWhereData($key, $val, $data);
                     }
                 }
@@ -527,7 +532,6 @@ class DB extends AbstractDB
             $this->join[] = "{$type} JOIN {$prefix}{$table}{$alias} ON " . $out;
             $this->joinedTables[$table] = "{$prefix}{$table}";
         }
-
         return $this;
     }
 

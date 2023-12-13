@@ -57,8 +57,9 @@ $select->not()->whereId(1)->whereEmail("john.doe@gmail.com");
 ```
 ### Where 3
 ```php 
-$select->whereBind(function($inst) {
-    $select->where("start_date", "2023-01-01", ">=")
+$select->whereBind(function($select) {
+    $select
+    ->where("start_date", "2023-01-01", ">=")
     ->where("end_date", "2023-01-14", "<=");
 })->or()->whereStatus(1);
 // (start_date >= '2023-01-01' AND end_date <= '2023-01-14') OR (status = '1')
@@ -97,8 +98,20 @@ $select->orderRaw("id ASC, parent DESC");
 // ORDER BY id ASC, parent DESC
 ```
 ### Join
+**Note** that no value in the join is, by default, enclosed. This means it will not add quotes to strings. This means it will attempt to add a database column by default if it is a string, and will return an error if the string column does not exist. If you want to enclose the value with quotes, use Attributes (see the section below).
 ```php 
 $select->join(["login", "aliasB"], ["aliasB.user_id" => "aliasA.id"]); // PROTECTED INPUT
+
+$select->join("login", ["user_id" => "id"]);
+// user_id = id AND org_id = oid
+
+// This will enclose and reset all protections
+$slug = DB::withAttr("my-slug-value"); 
+$select->join("login", [
+    ["slug" => $slug],
+    ["visible" => 1]
+]);
+
 $select->join("tableName", "b.user_id = '%d'", [872], "LEFT"); // PROTECTED INPUT
 $select->join("tableName", "b.user_id = a.id"); // "UNPROTECTED" INPUT
 
@@ -191,5 +204,5 @@ public function jsonEncode(bool $jsonEncode): self;
 - Input value: array("firstname" => "John", "lastname" => "Doe");
 - Output value:  {"firstname":"John","lastname":"Doe"}
 
-The default values vary based on whether it is a table column, a condition in a WHERE clause, or a value to be set. For instance, columns default to enclose set to false, whereas for WHERE or SET inputs, it defaults to true. Regardless, every value defaults to **prep**, **encode** and **jsonEncode** being set to **true**.
+The default values vary based on whether it is a table column, a condition in a WHERE clause, or a value to be set. For instance, if expecting a table columns, the default is not to enclose value with quotes, whereas for WHERE or SET inputs, it defaults is to enclose the values. Regardless, every value defaults to **prep**, **encode** and **jsonEncode** being set to **true**.
 
