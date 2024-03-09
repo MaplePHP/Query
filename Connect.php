@@ -16,17 +16,19 @@ class Connect
     private $dbname;
     private $charSetName;
     private $charset = "utf8mb4";
+    private $port;
     private static $self;
     private static $prefix = "";
     private static $selectedDB;
     private static $mysqlVars;
 
-    public function __construct($server, $user, $pass, $dbname)
+    public function __construct(string $server, string $user, string $pass, string $dbname, int $port = 3306)
     {
         $this->server = $server;
         $this->user = $user;
         $this->pass = $pass;
         $this->dbname = $dbname;
+        $this->port = $port;
         self::$self = $this;
     }
 
@@ -66,7 +68,7 @@ class Connect
      */
     public function execute(): void
     {
-        self::$selectedDB = new mysqli($this->server, $this->user, $this->pass, $this->dbname);
+        self::$selectedDB = new mysqli($this->server, $this->user, $this->pass, $this->dbname, $this->port);
         if (mysqli_connect_error()) {
             throw new ConnectException('Failed to connect to MySQL: ' . mysqli_connect_error(), 1);
         }
