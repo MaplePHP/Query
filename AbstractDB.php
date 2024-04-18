@@ -109,6 +109,9 @@ abstract class AbstractDB implements DBInterface
      */
     public function getColumns(): array
     {
+        if(is_string($this->columns)) {
+            return explode(",", $this->columns);
+        }
         if (!is_null($this->mig) && !$this->mig->columns($this->columns)) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }

@@ -275,9 +275,25 @@ class DB extends AbstractDB
         return $this;
     }
 
-    public function columns(...$columns)
+    /**
+     * Select protected mysql columns
+     * @param  string $columns
+     * @return self
+     */
+    public function columns(...$columns): self
     {
         $this->columns = $this->prepArr($columns, false);
+        return $this;
+    }
+
+    /**
+     * Select unprotected mysql columns
+     * @param  string $columns
+     * @return self
+     */
+    public function columnsRaw(string $columns): self
+    {
+        $this->columns = $columns;
         return $this;
     }
 
