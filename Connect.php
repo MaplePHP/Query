@@ -10,56 +10,79 @@ use mysqli;
 
 class Connect
 {
-    private $server;
-    private $user;
-    private $pass;
-    private $dbname;
-    private $charSetName;
-    private $charset = "utf8mb4";
-    private $port;
-    private static $self;
-    private static $prefix = "";
-    private static $selectedDB;
-    private static $mysqlVars;
 
-    public function __construct(string $server, string $user, string $pass, string $dbname, int $port = 3306)
+    private $handler;
+    private static array $inst;
+    private $db;
+
+    private function __construct($handler)
     {
-        $this->server = $server;
-        $this->user = $user;
-        $this->pass = $pass;
-        $this->dbname = $dbname;
-        $this->port = $port;
-        self::$self = $this;
+        $this->handler = $handler;
     }
 
     /**
-     * Get current instance
-     * @return self
+     * Prevent cloning the instance
+     * @return void
      */
-    public static function inst(): self
-    {
-        return self::$self;
+    private function __clone() {
     }
 
-    /**
-     * Set MySqli charset
-     * @param string $charset
-     */
-    public function setCharset(string $charset): void
+    public static function __callStatic(string $name, array $arguments)
     {
-        $this->charset = $charset;
+        $inst = new DB();
+        return $inst::$name(...$arguments);
     }
 
-    /**
-     * Set table prefix
-     * @param string $prefix
-     */
-    public static function setPrefix(string $prefix): void
+    public static function setHandler($handler, ?string $key = null): self
     {
-        if (strlen($prefix) > 0 && substr($prefix, -1) !== "_") {
-            throw new \InvalidArgumentException("The Prefix has to end with a underscore e.g. (prefix\"_\")!", 1);
+        $key = self::getKey($key);
+        if(!self::hasInstance($key)) {
+            self::$inst[$key] = new self($handler);
         }
-        self::$prefix = $prefix;
+        return self::$inst[$key];
+    }
+
+    public static function getInstance(?string $key = null): self
+    {
+        $key = self::getKey($key);
+        if(!self::hasInstance($key)) {
+            throw new ConnectException("Connect Error: No Connection Found");
+        }
+
+        return self::$inst[$key];
+    }
+
+    private static function hasInstance(?string $key = null): bool
+    {
+        $key = self::getKey($key);
+        return (isset(self::$inst[$key]) && (self::$inst[$key] instanceof self));
+    }
+
+    private static function getKey(?string $key = null): string
+    {
+        $key = (is_null($key)) ? "default" : $key;
+        return $key;
+    }
+
+    function getHandler() {
+        return $this->handler;
+    }
+
+    /**
+     * Get database type
+     * @return string
+     */
+    public function getType(): string
+    {
+        return $this->handler->getType();
+    }
+    /**
+     * Get current table prefix
+     * @return string
+     */
+    public function getPrefix(): string
+    {
+        return $this->handler->getPrefix();
     }
 
     /**
@@ -68,49 +91,15 @@ class Connect
      */
     public function execute(): void
     {
-        self::$selectedDB = new mysqli($this->server, $this->user, $this->pass, $this->dbname, $this->port);
-        if (mysqli_connect_error()) {
-            throw new ConnectException('Failed to connect to MySQL: ' . mysqli_connect_error(), 1);
-        }
-        if (!mysqli_set_charset(self::$selectedDB, $this->charset)) {
-            throw new ConnectException("Error loading character set " . $this->charset . ": " . mysqli_error(self::$selectedDB), 2);
-        }
-        $this->charSetName = mysqli_character_set_name(self::$selectedDB);
+        $this->db = $this->handler->execute();
     }
 
     /**
      * Get current DB connection
      */
-    public static function DB(): mysqli
+    public function DB(): mixed
     {
-        return static::$selectedDB;
-    }
-
-    /**
-     * Get selected database name
-     * @return string
-     */
-    public function getDBName(): string
-    {
-        return $this->dbname;
-    }
-
-    /**
-     * Get current Character set
-     * @return string|null
-     */
-    public function getCharSetName(): ?string
-    {
-        return $this->charSetName;
-    }
-
-    /**
-     * Get current table prefix
-     * @return string
-     */
-    public static function getPrefix(): string
-    {
-        return static::$prefix;
+        return $this->db;
     }
 
     /**
@@ -118,9 +107,9 @@ class Connect
      * @param  string $sql
      * @return object|array|bool
      */
-    public static function query(string $sql): object|array|bool
+    public function query(string $sql): object|array|bool
     {
-        return static::DB()->query($sql);
+        return $this->db->query($sql);
     }
 
     /**
@@ -128,9 +117,9 @@ class Connect
      * @param  string $value
      * @return string
      */
-    public static function prep(string $value): string
+    public function prep(string $value): string
     {
-        return static::DB()->real_escape_string($value);
+        return $this->handler->prep($value);
     }
 
     /**
@@ -139,13 +128,15 @@ class Connect
      * @param  string|null $prefix Expected table prefix (NOT database prefix)
      * @return void
      */
-    public static function selectDB(string $databaseName, ?string $prefix = null): void
+    /*
+     public static function selectDB(string $databaseName, ?string $prefix = null): void
     {
         mysqli_select_db(static::$selectedDB, $databaseName);
         if (!is_null($prefix)) {
             static::setPrefix($prefix);
         }
     }
+     */
 
     /**
      * Execute multiple quries at once (e.g. from a sql file)
@@ -153,82 +144,18 @@ class Connect
      * @param  object|null &$mysqli
      * @return array
      */
-    public static function multiQuery(string $sql, object &$mysqli = null): array
+    public function multiQuery(string $sql, object &$mysqli = null): array
     {
-        $count = 0;
-        $err = array();
-        $mysqli = self::$selectedDB;
-        if (mysqli_multi_query($mysqli, $sql)) {
-            do {
-                if ($result = mysqli_use_result($mysqli)) {
-                    /*
-                    while ($row = mysqli_fetch_array($result, MYSQLI_ASSOC)) {
-                    }
-                     */
-                }
-
-                if (!mysqli_more_results($mysqli)) {
-                    break;
-                }
-                if (!mysqli_next_result($mysqli) || mysqli_errno($mysqli)) {
-                    $err[$count] = mysqli_error($mysqli);
-                    break;
-                }
-                $count++;
-            } while (true);
-            if ($result) {
-                mysqli_free_result($result);
-            }
-        } else {
-            $err[$count] = mysqli_error($mysqli);
-        }
-
-        //mysqli_close($mysqli);
-        return $err;
+        return $this->handler->multiQuery($sql, $mysqli);
     }
 
     /**
      * Start Transaction
      * @return mysqli
      */
-    public static function beginTransaction()
+    public function transaction(): mixed
     {
-        Connect::DB()->begin_transaction();
-        return Connect::DB();
-    }
-
-
-    // Same as @beginTransaction
-    public static function transaction()
-    {
-        return self::beginTransaction();
-    }
-
-    /**
-     * Commit transaction
-     * @return void
-     */
-    public static function commit(): void
-    {
-        Connect::DB()->commit();
-    }
-
-    /**
-     * Rollback transaction
-     * @return void
-     */
-    public static function rollback(): void
-    {
-        Connect::DB()->rollback();
-    }
-
-    /**
-     * Get current table prefix
-     * @return string
-     */
-    public static function prefix(): string
-    {
-        return static::getPrefix();
+        return $this->handler->transaction();
     }
 
     /**

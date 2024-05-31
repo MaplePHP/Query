@@ -3,22 +3,23 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query;
 
-use MaplePHP\Query\Create;
+//use MaplePHP\Query\Create;
 use MaplePHP\Query\Interfaces\MigrateInterface;
+use Exception;
 
 abstract class AbstractMigrate implements MigrateInterface
 {
     protected $mig;
     protected $table;
 
-    abstract protected function buildTable();
+    abstract protected function migrateTable();
 
     public function __construct(string $table, ?string $prefix = null)
     {
         if (is_null($prefix)) {
             $prefix = getenv("MYSQL_PREFIX");
             if ($prefix === false) {
-                throw new \Exception("Table prefix is required!", 1);
+                throw new Exception("Table prefix is required!", 1);
             }
         }
         $this->mig = new Create($table, $prefix);
@@ -31,7 +32,7 @@ abstract class AbstractMigrate implements MigrateInterface
      */
     public function getBuild(): Create
     {
-        $this->buildTable();
+        $this->migrateTable();
         return $this->mig;
     }
 
@@ -60,7 +61,7 @@ abstract class AbstractMigrate implements MigrateInterface
      */
     public function getData(): array
     {
-        $this->buildTable();
+        $this->migrateTable();
         return $this->mig->getColumns();
     }
 
@@ -71,10 +72,7 @@ abstract class AbstractMigrate implements MigrateInterface
     public function read(): string
     {
         $this->mig->auto();
-        $this->buildTable();
-        if (!$this->mig->getColumns()) {
-            throw new \Exception("There is nothing to read in migration.", 1);
-        }
+        $this->migrateTable();
         return $this->mig->build();
     }
 
@@ -85,10 +83,7 @@ abstract class AbstractMigrate implements MigrateInterface
     public function create(): array
     {
         $this->mig->auto();
-        $this->buildTable();
-        if (!$this->mig->getColumns()) {
-            throw new \Exception("There is nothing to commit in migration.", 1);
-        }
+        $this->migrateTable();
         return $this->mig->execute();
     }
 

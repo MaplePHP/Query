@@ -69,7 +69,7 @@ class Attr implements AttrInterface
             }
             
             if($this->prep) {
-                $this->value = Connect::prep($this->value);
+                $this->value = Connect::getInstance()->prep($this->value);
             }
 
             if ($this->enclose) {

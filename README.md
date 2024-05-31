@@ -13,13 +13,24 @@ MaplePHP - MySQL queries is a powerful yet **user-friendly** library for making 
 ```php
 use MaplePHP\Query\Connect;
 
-$connect = new Connect($server, $user, $password, $databaseName);
-$connect->setCharset("utf8mb4");
+$handler = new MySQLHandler(
+    $server,
+    $user,
+    $password,
+    $databaseName,
+    $port
+);
+
+// Maple DB do also support SQLite. 
+//$handler = new SqliteHandler("database.sqlite");
+
 // Recommened: Set TABLE prefix. This will make your life easier
 // MaplePHP DB class will "automatically prepend" it to the table names.
-$connect->setPrefix("maple_");
-$connect->execute();
+$handler->setPrefix("maple_");
+$handler->setCharset("utf8mb4");
 
+$connect = Connect::setHandler($handler);
+$connect->execute();
 ```
 ## Make queries
 Start with the namespace

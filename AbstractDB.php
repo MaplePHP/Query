@@ -90,7 +90,7 @@ abstract class AbstractDB implements DBInterface
      */
     public function connect()
     {
-        return Connect::DB();
+        return Connect::getInstance()->DB();
     }
 
     /**
@@ -100,7 +100,7 @@ abstract class AbstractDB implements DBInterface
     public function getTable(bool $withAlias = false): string
     {
         $alias = ($withAlias && !is_null($this->alias)) ? " {$this->alias}" : "";
-        return Connect::prefix() . $this->table . $alias;
+        return Connect::getInstance()->getHandler()->getPrefix() . $this->table . $alias;
     }
 
     /**
@@ -360,7 +360,7 @@ abstract class AbstractDB implements DBInterface
     final protected function buildJoinFromMig(MigrateInterface $mig, string $type): array
     {
         $joinArr = array();
-        $prefix = Connect::prefix();
+        $prefix = Connect::getInstance()->getHandler()->getPrefix();
         $main = $this->getMainFKData();
         $data = $mig->getData();
         $this->mig->mergeData($data);

@@ -5,7 +5,6 @@ namespace MaplePHP\Query;
 
 use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\DBInterface;
-use MaplePHP\Query\Connect;
 
 class Query
 {
@@ -22,13 +21,14 @@ class Query
     /**
      * Execute query result
      * @return object|array|bool
+     * @throws ConnectException
      */
     public function execute(): object|array|bool
     {
-        if ($result = Connect::query($this->sql)) {
+        if ($result = Connect::getInstance()->query($this->sql)) {
             return $result;
         } else {
-            throw new ConnectException(Connect::DB()->error, 1);
+            throw new ConnectException(Connect::getInstance()->DB()->error, 1);
         }
     }
 
@@ -44,6 +44,7 @@ class Query
     /**
      * SAME AS @get(): Execute query result And fetch as obejct
      * @return bool|object (Mysql result)
+     * @throws ConnectException
      */
     final public function obj(): bool|object
     {
@@ -56,8 +57,9 @@ class Query
 
     /**
      * Execute SELECT and fetch as array with nested objects
-     * @param  callable|null $callback callaback, make changes in query and if return then change key
+     * @param callable|null $callback callaback, make changes in query and if return then change key
      * @return array
+     * @throws ConnectException
      */
     final public function fetch(?callable $callback = null): array
     {
@@ -89,9 +91,10 @@ class Query
     /**
      * Get insert AI ID from prev inserted result
      * @return string|int
+     * @throws ConnectException
      */
     public function insertID(): string|int
     {
-        return Connect::DB()->insert_id;
+        return Connect::getInstance()->DB()->insert_id;
     }
 }

@@ -1,69 +1,69 @@
 <?php
 
 /**
-    // USAGE:
+// USAGE:
 
-    // Init class
-    // Arg1: Table name
-    $mig = new \query\create("test");
+// Init class
+// Arg1: Table name
+$mig = new \query\create("test");
 
-    // Rename: IF table name is "test" or "test1" then it will be renamed to "test2".
-    // Has to be the first method to be called
-    //$mig->rename(["test1", "test2"]);
+// Rename: IF table name is "test" or "test1" then it will be renamed to "test2".
+// Has to be the first method to be called
+//$mig->rename(["test1", "test2"]);
 
-    // Will create new stuff and alter current stuff
-    $mig->auto();
+// Will create new stuff and alter current stuff
+$mig->auto();
 
-    // Only create table
-    //$mig->create();
+// Only create table
+//$mig->create();
 
-    // Only alter table
-    //$mig->alter();
+// Only alter table
+//$mig->alter();
 
-    // Only drop table
-    //$mig->drop();
+// Only drop table
+//$mig->drop();
 
-    // Add/alter columns
-    $result = $mig->column("id", [
-        "type" => "int",
-        "length" => 11,
-        "attr" => "unsigned",
-        "index" => "primary",
-        "ai" => true
+// Add/alter columns
+$result = $mig->column("id", [
+"type" => "int",
+"length" => 11,
+"attr" => "unsigned",
+"index" => "primary",
+"ai" => true
 
-    ])->column("testKey", [
-        // Drop: Will drop the column
-        "drop" => true,
-        "type" => "int",
-        "length" => 11,
-        "index" => "index",
-        "attr" => "unsigned",
-        "default" => "0"
+])->column("testKey", [
+// Drop: Will drop the column
+"drop" => true,
+"type" => "int",
+"length" => 11,
+"index" => "index",
+"attr" => "unsigned",
+"default" => "0"
 
-    ])->column("name", [
-        "type" => "varchar",
-        "length" => 200,
-        "collate" => true,
-        "default" => ""
+])->column("name", [
+"type" => "varchar",
+"length" => 200,
+"collate" => true,
+"default" => ""
 
-    ])->column("loremname_1", [
-        // Rename: IF old column name is "loremname_1" or "loremname_2" then it will be renamed to "permalink"
-        "rename" => ["loremname_2", "permalink"],
-        "type" => "varchar",
-        "index" => "index",
-        "length" => 200,
-        "collate" => true
+])->column("loremname_1", [
+// Rename: IF old column name is "loremname_1" or "loremname_2" then it will be renamed to "permalink"
+"rename" => ["loremname_2", "permalink"],
+"type" => "varchar",
+"index" => "index",
+"length" => 200,
+"collate" => true
 
-    ]);
+]);
 
-    // Will execute migration
-    $mig->execute();
+// Will execute migration
+$mig->execute();
 
-    // Get migration in SQL string (CAN be called before @execute);
-    echo "<pre>";
-    print_r($mig->build());
-    echo "</pre>";
-*/
+// Get migration in SQL string (CAN be called before @execute);
+echo "<pre>";
+print_r($mig->build());
+echo "</pre>";
+ */
 
 namespace MaplePHP\Query;
 
@@ -122,18 +122,18 @@ class Create
     public const INDEXES = ["PRIMARY", "UNIQUE", "INDEX", "FULLTEXT", "SPATIAL"];
     public const FULLTEXT_COLUMNS = ["CHAR", "VARCHAR", "TEXT", "TINYTEXT", "MEDIUMTEXT", "LONGTEXT", "JSON"];
     public const SPATIAL_COLUMNS = ["POINT", "LINESTRING", "POLYGON", "GEOMETRY", "MULTIPOINT",
-    "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION"];
+        "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION"];
 
 
     public function __construct(string $table, ?string $prefix = null)
     {
         if (!is_null($prefix)) {
-            $this->prefix = Connect::prep($prefix);
+            $this->prefix = Connect::getInstance()->prep($prefix);
         }
         $this->charset = "utf8";
         $this->engine = "InnoDB";
         $this->rowFormat = "DYNAMIC";
-        $this->tableText = Connect::prep($table);
+        $this->tableText = Connect::getInstance()->prep($table);
         $this->table = "{$this->prefix}{$this->tableText}";
     }
 
@@ -221,12 +221,12 @@ class Create
         foreach ($arr as $k => $tb) {
             $tb = ($k !== 0 ? $this->prefix : null) . $tb;
             if ($this->tableExists($tb)) {
-                $currentTB = Connect::prep($tb);
+                $currentTB = Connect::getInstance()->prep($tb);
                 break;
             }
         }
 
-        $newTB = Connect::prep($this->prefix . end($arr));
+        $newTB = Connect::getInstance()->prep($this->prefix . end($arr));
 
         if ($currentTB) {
             $this->table = $currentTB;
@@ -367,7 +367,7 @@ class Create
     {
 
         foreach ($this->columns as $col => $arr) {
-            $col = Connect::prep($col);
+            $col = Connect::getInstance()->prep($col);
             $this->args = array_merge($this::ARGS, $arr);
 
             $this->hasRename = null;
@@ -376,7 +376,7 @@ class Create
                 if (!$this->columnExists($this->table, $col)) {
                     foreach ($hasRename as $k) {
                         if ($this->columnExists($this->table, $k)) {
-                            $col = Connect::prep($k);
+                            $col = Connect::getInstance()->prep($k);
                             break;
                         }
                     }
@@ -498,7 +498,7 @@ class Create
                 switch ($this->type) {
                     case "create":
                         $this->build .= "(" . implode(",\n ", $this->add) . ") ENGINE={$this->engine} DEFAULT " .
-                        "CHARSET={$this->charset} ROW_FORMAT={$this->rowFormat};";
+                            "CHARSET={$this->charset} ROW_FORMAT={$this->rowFormat};";
                         break;
                     case "alter":
                         $this->build .= "" . implode(",\n ", $this->add) . ";";
@@ -540,7 +540,7 @@ class Create
     public function execute()
     {
         $sql = $this->build();
-        $error = Connect::multiQuery($sql, $mysqli);
+        $error = Connect::getInstance()->multiQuery($sql, $mysqli);
         return $error;
     }
 
@@ -548,7 +548,7 @@ class Create
     {
         $new = array();
         foreach ($arr as $a) {
-            $new[] = Connect::prep($a);
+            $new[] = Connect::getInstance()->prep($a);
         }
         return $new;
     }
@@ -562,7 +562,7 @@ class Create
         if (is_null($this->tbKeys)) {
             $this->tbKeysType = $this->tbKeys = array();
             if ($this->tableExists($this->table)) {
-                $result = Connect::query("SHOW INDEXES FROM {$this->table}");
+                $result = Connect::getInstance()->query("SHOW INDEXES FROM {$this->table}");
                 if (is_object($result) && $result->num_rows > 0) {
                     while ($row = $result->fetch_object()) {
                         $type = ($row->Index_type === "FULLTEXT" ||
@@ -667,7 +667,7 @@ class Create
             if ($this->args['collate'] === true) {
                 $this->args['collate'] = $this::COLLATION;
             }
-            return "CHARACTER SET " . Connect::prep($this->charset) . " COLLATE " . Connect::prep($this->args['collate']) . "";
+            return "CHARACTER SET " . Connect::getInstance()->prep($this->charset) . " COLLATE " . Connect::getInstance()->prep($this->args['collate']) . "";
         }
         return null;
     }
@@ -688,7 +688,7 @@ class Create
     public function default(): ?string
     {
         return (!is_null($this->args['default']) && $this->args['default'] !== false) ? "DEFAULT '" .
-        Connect::prep($this->args['default']) . "'" : null;
+            Connect::getInstance()->prep($this->args['default']) . "'" : null;
     }
 
     /**
@@ -702,7 +702,7 @@ class Create
             if (!in_array($this->args['attr'], $this::ATTRIBUTES)) {
                 throw new QueryCreateException("The attribute \"{$this->args['attr']}\" does not exist", 1);
             }
-            return Connect::prep($this->args['attr']);
+            return Connect::getInstance()->prep($this->args['attr']);
         }
 
         return null;
@@ -731,7 +731,7 @@ class Create
                     throw new QueryCreateException("You can ony have \"{$this->args['index']}\" index on column types " .
                         "(" . implode(", ", static::FULLTEXT_COLUMNS) . "), you have \"{$this->args['type']}\".", 1);
                 }
-                return Connect::prep($this->args['index']);
+                return Connect::getInstance()->prep($this->args['index']);
             }
         }
         return null;
@@ -818,8 +818,8 @@ class Create
         if (count($this->keys) > 0) {
             $sqlKeyArr = array();
             foreach ($this->keys as $col => $key) {
-                $col = Connect::prep($col);
-                $key = strtoupper(Connect::prep($key));
+                $col = Connect::getInstance()->prep($col);
+                $key = strtoupper(Connect::getInstance()->prep($key));
 
                 // Prepare DROP
                 if (isset($prepareDrop[$col]) && ($index = array_search($key, $prepareDrop[$col])) !== false) {
@@ -910,10 +910,10 @@ class Create
 
     public function fkExists(string $table, string $col)
     {
-        $table = Connect::prep($table);
-        $col = Connect::prep($col);
-        $dbName = Connect::inst()->getDBName();
-        $result = Connect::query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM " .
+        $table = Connect::getInstance()->prep($table);
+        $col = Connect::getInstance()->prep($col);
+        $dbName = Connect::getInstance()->getDBName();
+        $result = Connect::getInstance()->query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM " .
             "INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '{$dbName}' AND " .
             "TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
 
@@ -933,8 +933,8 @@ class Create
             if (is_null($table)) {
                 $table = $this->table;
             }
-            $table = Connect::prep($table);
-            $result = Connect::query("SHOW TABLES LIKE '{$table}'");
+            $table = Connect::getInstance()->prep($table);
+            $result = Connect::getInstance()->query("SHOW TABLES LIKE '{$table}'");
             if (is_object($result) && $result->num_rows > 0) {
                 $this->tableExists = $result;
             }
@@ -945,9 +945,9 @@ class Create
     public function columnExists(string $table, string $col)
     {
         if ($this->tableExists($table)) {
-            $table = Connect::prep($table);
-            $col = Connect::prep($col);
-            $result = Connect::query("SHOW COLUMNS FROM {$table} LIKE '{$col}'");
+            $table = Connect::getInstance()->prep($table);
+            $col = Connect::getInstance()->prep($col);
+            $result = Connect::getInstance()->query("SHOW COLUMNS FROM {$table} LIKE '{$col}'");
             if (is_object($result) && $result->num_rows > 0) {
                 return $result;
             }

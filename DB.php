@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query;
 
+use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
@@ -45,6 +46,7 @@ class DB extends AbstractDB
             $table = array_pop($args);
             $inst = self::table($table);
             $inst->method = $method;
+            $prefix = Connect::getInstance()->getHandler()->getPrefix();
             switch ($inst->method) {
                 case 'select':
                 case 'selectView':
@@ -57,13 +59,13 @@ class DB extends AbstractDB
                 case 'createView':
                 case 'replaceView':
                     $encodeArg1 = $inst->getAttr($defaultArgs[0])->enclose(false);
-                    $inst->viewName = Connect::prefix() . static::VIEW_PREFIX_NAME . "_" . $encodeArg1;
+                    $inst->viewName = $prefix . static::VIEW_PREFIX_NAME . "_" . $encodeArg1;
                     $inst->sql = $defaultArgs[1];
                     break;
                 case 'dropView':
                 case 'showView':
                     $encodeArg1 = $inst->getAttr($defaultArgs[0])->enclose(false);
-                    $inst->viewName = Connect::prefix() . static::VIEW_PREFIX_NAME . "_" . $encodeArg1;
+                    $inst->viewName = $prefix . static::VIEW_PREFIX_NAME . "_" . $encodeArg1;
                     break;
                 default:
                     $inst->dynamic = [[$inst, $inst->method], $args];
@@ -518,7 +520,7 @@ class DB extends AbstractDB
                 throw new DBQueryException("You need to specify the argumnet 2 (where) value!", 1);
             }
 
-            $prefix = Connect::prefix();
+            $prefix = Connect::getInstance()->getHandler()->getPrefix();
             $arr = $this->sperateAlias($table);
             $table = (string)$this->prep($arr['table'], false);
             $alias = (!is_null($arr['alias'])) ? " {$arr['alias']}" : " {$table}";
@@ -749,7 +751,7 @@ class DB extends AbstractDB
     }
 
     /**
-     * Byuld limit
+     * Build limit
      * @return string
      */
     private function buildLimit(): string
@@ -762,7 +764,8 @@ class DB extends AbstractDB
     }
 
     /**
-     * Used to call methoed that builds SQL queryies
+     * Used to call method that builds SQL queries
+     * @throws DBQueryException
      */
     final protected function build(): void
     {
@@ -784,8 +787,9 @@ class DB extends AbstractDB
     }
 
     /**
-     * Genrate SQL string of current instance/query
+     * Generate SQL string of current instance/query
      * @return string
+     * @throws DBQueryException
      */
     public function sql(): string
     {
@@ -795,47 +799,22 @@ class DB extends AbstractDB
 
     /**
      * Start Transaction
-     * @return mysqli
+     * @return mixed
+     * @throws ConnectException
      */
-    public static function beginTransaction()
+    public static function transaction(): mixed
     {
-        Connect::DB()->begin_transaction();
-        return Connect::DB();
-    }
-
-
-    // Same as @beginTransaction
-    public static function transaction()
-    {
-        return self::beginTransaction();
-    }
-
-    /**
-     * Commit transaction
-     * @return void
-     */
-    public static function commit(): void
-    {
-        Connect::DB()->commit();
-    }
-
-    /**
-     * Rollback transaction
-     * @return void
-     */
-    public static function rollback(): void
-    {
-        Connect::DB()->rollback();
+        return Connect::getInstance()->getHandler()->transaction();
     }
 
     /**
      * Get return a new generated UUID
      * DEPRECATED: Will be moved to Connect for starter
-     * @return null|string
+     * @throws ConnectException|DBQueryException
      */
     public static function getUUID(): ?string
     {
-        $result = Connect::query("SELECT UUID()");
+        $result = Connect::getInstance()->query("SELECT UUID()");
         if (is_object($result)) {
             if ($result->num_rows > 0) {
                 $row = $result->fetch_row();
@@ -843,16 +822,17 @@ class DB extends AbstractDB
             }
             return null;
         } else {
-            throw new DBQueryException(Connect::DB()->error, 1);
+            throw new DBQueryException(Connect::getInstance()->DB()->error, 1);
         }
     }
 
     /**
      * Get insert AI ID from prev inserted result
      * @return int|string
+     * @throws ConnectException
      */
     public function insertID(): int|string
     {
-        return Connect::DB()->insert_id;
+        return Connect::getInstance()->DB()->insert_id;
     }
 }

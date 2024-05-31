@@ -134,7 +134,7 @@ class Build
     final protected function buildJoinFromMig(MigrateInterface $mig, string $type): array
     {
         $joinArr = array();
-        $prefix = Connect::prefix();
+        $prefix = Connect::getInstance()->getHandler()->getPrefix();
         $main = $this->getMainFKData();
         $data = $mig->getData();
         $this->mig->mergeData($data);
@@ -176,7 +176,7 @@ class Build
             throw new \InvalidArgumentException("You need to specify the argumnet 2 (where) value!", 1);
         }
 
-        $prefix = Connect::prefix();
+        $prefix = Connect::getInstance()->getHandler()->getPrefix();
         $arr = $this->sperateAlias($table);
         $table = (string)$this->prep($arr['table'], false);
         $alias = (!is_null($arr['alias'])) ? " {$arr['alias']}" : " {$table}";
