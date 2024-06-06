@@ -6,6 +6,7 @@ MaplePHP - Database query builder is a powerful yet **user-friendly** library fo
 - [Connect to the database](#connect-to-the-database)
 - [Make queries](#make-queries)
 - [Attributes](#attributes)
+- [Multiple Connections](#multiple-connections)
 - *Migrations (Coming soon)*
 
 ## Connect to the database
@@ -44,7 +45,7 @@ $connect = Connect::setHandler($SQLiteHandler);
 $connect->execute();
 ```
 
-***Note:** That the first connection will count as the main connection if not overwritten. You can also have multiple connection, click here for more information.* 
+***Note:** That the first connection will count as the main connection if not overwritten. You can also have multiple connection, [click here](#multiple-connections) for more information.* 
 
 
 ## Make queries
