@@ -1,6 +1,6 @@
 
-# MaplePHP - MySQL queries
-MaplePHP - MySQL queries is a powerful yet **user-friendly** library for making **safe** database queries.
+# MaplePHP - Database query builder
+MaplePHP - Database query builder is a powerful yet **user-friendly** library for making **safe** database queries, with support for both MySQL and SQLite.
 
 ### Contents
 - [Connect to the database](#connect-to-the-database)
@@ -10,6 +10,7 @@ MaplePHP - MySQL queries is a powerful yet **user-friendly** library for making 
 
 ## Connect to the database
 
+### Connect to MySQL
 ```php
 use MaplePHP\Query\Connect;
 
@@ -22,9 +23,9 @@ $handler = new MySQLHandler(
 );
 
 // Maple DB do also support SQLite. 
-//$handler = new SqliteHandler("database.sqlite");
+//$handler = new SQLiteHandler("database.SQLite");
 
-// Recommened: Set TABLE prefix. This will make your life easier
+// Recommend: Set TABLE prefix. This will make your life easier
 // MaplePHP DB class will "automatically prepend" it to the table names.
 $handler->setPrefix("maple_");
 $handler->setCharset("utf8mb4");
@@ -32,6 +33,20 @@ $handler->setCharset("utf8mb4");
 $connect = Connect::setHandler($handler);
 $connect->execute();
 ```
+
+### Connect to SQLite
+```php
+use MaplePHP\Query\Connect;
+
+$SQLiteHandler = new SQLiteHandler(__DIR__ . "/database.SQLite");
+$SQLiteHandler->setPrefix("mp_");
+$connect = Connect::setHandler($SQLiteHandler);
+$connect->execute();
+```
+
+***Note:** That the first connection will count as the main connection if not overwritten. You can also have multiple connection, click here for more information.* 
+
+
 ## Make queries
 Start with the namespace
 ```php
@@ -131,6 +146,13 @@ $select->joinLeft("tableName", ["b.user_id" => "a.id"]);
 $select->joinRight("tableName", ["b.user_id" => "a.id"]);
 $select->joinCross("tableName", ["b.user_id" => "a.id"]);
 ```
+
+### Pluck
+```php
+$pluck->pluck("a.name")->get();
+```
+
+
 ### Insert
 ```php 
 $insert = DB::insert("pages")->set(["id" => 36, "name" => "About us", "slug" => "about-us"])->onDupKey();
@@ -217,3 +239,40 @@ public function jsonEncode(bool $jsonEncode): self;
 
 The default values vary based on whether it is a table column, a condition in a WHERE clause, or a value to be set. For instance, if expecting a table columns, the default is not to enclose value with quotes, whereas for WHERE or SET inputs, it defaults is to enclose the values. Regardless, every value defaults to **prep**, **encode** and **jsonEncode** being set to **true**.
 
+
+## Multiple connections
+You can have multiple connection to different MySQL or SQLite databases or both.
+
+```php
+use MaplePHP\Query\Connect;
+
+// DB: 1
+$handler = new MySQLHandler(
+    $server,
+    $user,
+    $password,
+    $databaseName,
+    $port
+);
+$handler->setPrefix("maple_");
+$handler->setCharset("utf8mb4");
+$connect = Connect::setHandler($handler);
+$connect->execute();
+
+// DB: 2
+$SQLiteHandler = new SQLiteHandler(__DIR__ . "/database.SQLite");
+$SQLiteHandler->setPrefix("mp_");
+$connect = Connect::setHandler($SQLiteHandler, "myConnKey");
+$connect->execute();
+
+// The connections have been made!
+// Let's do some queries 
+
+// DB-1 Query: Access the default MySQL database 
+$select = DB::select("id,firstname,lastname", "users")->whereId(1)->limit(1);
+$obj = $select->get();
+
+// DB-2 Query: Access the SQLite database
+$select = Connect::getInstance("myConnKey")::select("id,name,create_date", "tags")->whereId(1)->limit(1);
+$obj = $select->get();
+```

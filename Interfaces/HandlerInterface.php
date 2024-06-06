@@ -29,6 +29,12 @@ interface HandlerInterface
     public function setPrefix(string $prefix): void;
 
     /**
+     * Check if a connections is open
+     * @return bool
+     */
+    public function hasConnection(): bool;
+
+    /**
      * Connect to database
      * @return mixed
      * @throws ConnectException

@@ -9,9 +9,12 @@ use MaplePHP\Query\Interfaces\MigrateInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
 use MaplePHP\Query\Exceptions\DBValidationException;
 use MaplePHP\Query\Exceptions\DBQueryException;
-use MaplePHP\Query\Utility\Attr;
+//use MaplePHP\Query\Utility\Attr;
 use MaplePHP\Query\Utility\WhitelistMigration;
 
+/**
+ * @method pluck(string $string)
+ */
 class DB extends AbstractDB
 {
     private $method;
@@ -32,14 +35,17 @@ class DB extends AbstractDB
     private $viewName;
     private $sql;
     private $dynamic;
+    protected ?string $pluck = null;
 
     /**
-     * It is a semi-dynamic method builder that expects certain types of objects to be setted
-     * @param  string $method
-     * @param  array $args
+     * It is a semi-dynamic method builder that expects certain types of objects to be set
+     * @param string $method
+     * @param array $args
      * @return self
+     * @throws ConnectException
+     * @throws DBQueryException
      */
-    public static function __callStatic($method, $args)
+    public static function __callStatic(string $method, array $args)
     {
         if (count($args) > 0) {
             $defaultArgs = $args;
@@ -79,19 +85,26 @@ class DB extends AbstractDB
 
     /**
      * Used to make methods into dynamic shortcuts
-     * @param  string $method
-     * @param  array $args
-     * @return mixed
+     * @param string $method
+     * @param array $args
+     * @return array|bool|DB|object
+     * @throws DBQueryException
+     * @throws DBValidationException|ConnectException
      */
-    public function __call($method, $args)
+    public function __call(string $method, array $args)
     {
         $camelCaseArr = $this->extractCamelCase($method);
         $shift = array_shift($camelCaseArr);
         switch ($shift) {
             case "pluck": // Columns??
-                if (is_array($args[0] ?? null)) {
-                    $args = $args[0];
+                $args = ($args[0] ?? "");
+                if (str_contains($args, ",")) {
+                    throw new DBQueryException("Your only allowed to pluck one database column!");
                 }
+
+                $pluck = explode(".", $args);
+
+                $this->pluck = trim(end($pluck));
                 $this->columns($args);
                 break;
             case "where":
@@ -119,10 +132,11 @@ class DB extends AbstractDB
     }
 
     /**
-     * You can build queries like Larvel If you want. I do not think they have good semantics tho.
+     * You can build queries like Laravel If you want. I do not think they have good semantics tho.
      * It is better to use (DB::select, DB::insert, DB::update, DB::delete)
-     * @param  string|array $table Mysql table name (if array e.g. [TABLE_NAME, ALIAS])
-     * @return self new intance
+     * @param string|array|MigrateInterface $data
+     * @return self new instance
+     * @throws DBQueryException
      */
     public static function table(string|array|MigrateInterface $data): self
     {
@@ -145,27 +159,35 @@ class DB extends AbstractDB
 
     /**
      * Access Query Attr class
-     * @param  array|string|int|float  $value
+     * @param array|string|int|float $value
+     * @param array|null $args
      * @return AttrInterface
+     * @throws DBValidationException
      */
     public static function withAttr(array|string|int|float $value, ?array $args = null): AttrInterface
     {
         $inst = new self();
         $inst = $inst->getAttr($value);
         if (!is_null($args)) {
-            foreach ($args as $method => $args) {
+            foreach ($args as $method => $arg) {
                 if (!method_exists($inst, $method)) {
                     throw new DBValidationException("The Query Attr method \"" .htmlspecialchars($method, ENT_QUOTES). "\" does not exists!", 1);
                 }
-                $inst = call_user_func_array([$inst, $method], (!is_array($args) ? [$args] : $args));
+                $inst = call_user_func_array([$inst, $method], (!is_array($arg) ? [$arg] : $arg));
             }
         }
         return $inst;
     }
 
+    static function _select($col, $table) {
+        return self::table($table)->columns($col);
+    }
+
     /**
      * Build SELECT sql code (The method will be auto called in method build)
+     * @method static __callStatic
      * @return self
+     * @throws DBValidationException
      */
     protected function select(): self
     {
@@ -176,8 +198,8 @@ class DB extends AbstractDB
         $order = (!is_null($this->order)) ? " ORDER BY " . implode(",", $this->order) : "";
         $limit = $this->buildLimit();
 
-        $this->sql = "{$this->explain}SELECT {$this->noCache}{$this->calRows}{$this->distinct}{$columns} FROM " .
-        $this->getTable(true) . "{$join}{$where}{$this->group}{$having}{$order}{$limit}{$this->union}";
+        $this->sql = "{$this->explain}SELECT $this->noCache$this->calRows$this->distinct$columns FROM " .
+        $this->getTable(true) . "$join$where$this->group$having$order$limit$this->union";
 
         return $this;
     }
@@ -185,6 +207,7 @@ class DB extends AbstractDB
     /**
      * Select view
      * @return self
+     * @throws DBValidationException
      */
     protected function selectView(): self
     {
@@ -212,8 +235,8 @@ class DB extends AbstractDB
         $where = $this->buildWhere("WHERE", $this->where);
         $limit = $this->buildLimit();
 
-        $this->sql = "{$this->explain}UPDATE " . $this->getTable() . "{$join} SET " .
-        $this->buildUpdateSet() . "{$where}{$limit}";
+        $this->sql = "{$this->explain}UPDATE " . $this->getTable() . "$join SET " .
+        $this->buildUpdateSet() . "$where$limit}";
         return $this;
     }
 
@@ -225,13 +248,13 @@ class DB extends AbstractDB
     {
         $linkedTables = $this->getAllQueryTables();
         if (!is_null($linkedTables)) {
-            $linkedTables = " {$linkedTables}";
+            $linkedTables = " $linkedTables";
         }
         $join = $this->buildJoin();
         $where = $this->buildWhere("WHERE", $this->where);
         $limit = $this->buildLimit();
 
-        $this->sql = "{$this->explain}DELETE{$linkedTables} FROM " . $this->getTable() . "{$join}{$where}{$limit}";
+        $this->sql = "{$this->explain}DELETE$linkedTables FROM " . $this->getTable() . "$join$where$limit";
         return $this;
     }
 
@@ -242,7 +265,7 @@ class DB extends AbstractDB
     protected function createView(): self
     {
         //$this->select();
-        $this->sql = "CREATE VIEW " . $this->viewName . " AS {$this->sql}";
+        $this->sql = "CREATE VIEW " . $this->viewName . " AS $this->sql";
         return $this;
     }
 
@@ -253,7 +276,7 @@ class DB extends AbstractDB
     protected function replaceView(): self
     {
         //$this->select();
-        $this->sql = "CREATE OR REPLACE VIEW " . $this->viewName . " AS {$this->sql}";
+        $this->sql = "CREATE OR REPLACE VIEW " . $this->viewName . " AS $this->sql";
         return $this;
     }
 
@@ -343,7 +366,7 @@ class DB extends AbstractDB
 
     /**
      * Raw Mysql Where input
-     * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
+     * Uses sprint to mysql prep/protect input in string. Prep string values needs to be enclosed manually
      * @param  string    $sql     SQL string example: (id = %d AND permalink = '%s')
      * @param  array     $arr     Mysql prep values
      * @return self
@@ -361,10 +384,11 @@ class DB extends AbstractDB
     /**
      * Create protected MySQL WHERE input
      * Supports dynamic method name calls like: whereIdStatus(1, 0)
-     * @param  string      $key      Mysql column
-     * @param  string|int|float|AttrInterface      $val      Equals to value
-     * @param  string|null $operator Change comparison operator from default "=".
+     * @param string|AttrInterface $key Mysql column
+     * @param string|int|float|AttrInterface $val Equals to value
+     * @param string|null $operator Change comparison operator from default "=".
      * @return self
+     * @throws DBValidationException
      */
     public function where(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self
     {
@@ -378,7 +402,7 @@ class DB extends AbstractDB
 
     /**
      * Group mysql WHERE inputs
-     * @param  callable $call  Evere method where placed inside callback will be grouped.
+     * @param  callable $call  Every method where placed inside callback will be grouped.
      * @return self
      */
     public function whereBind(callable $call): self
@@ -394,10 +418,11 @@ class DB extends AbstractDB
 
     /**
      * Create protected MySQL HAVING input
-     * @param  string      $key      Mysql column
-     * @param  string|int|float|AttrInterface      $val      Equals to value
-     * @param  string|null $operator Change comparison operator from default "=".
+     * @param string|AttrInterface $key Mysql column
+     * @param string|int|float|AttrInterface $val Equals to value
+     * @param string|null $operator Change comparison operator from default "=".
      * @return self
+     * @throws DBValidationException
      */
     public function having(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self
     {
@@ -410,7 +435,7 @@ class DB extends AbstractDB
 
     /**
      * Raw Mysql HAVING input
-     * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
+     * Uses sprint to mysql prep/protect input in string. Prep string values needs to be enclosed manually
      * @param  string    $sql     SQL string example: (id = %d AND permalink = '%s')
      * @param  array     $arr     Mysql prep values
      * @return self
@@ -426,7 +451,7 @@ class DB extends AbstractDB
     }
 
     /**
-     * Add a limit and maybee a offset
+     * Add a limit and maybe an offset
      * @param  int      $limit
      * @param  int|null $offset
      * @return self
@@ -441,7 +466,7 @@ class DB extends AbstractDB
     }
 
     /**
-     * Add a offset (if limit is not set then it will automatically become "1").
+     * Add an offset (if limit is not set then it will automatically become "1").
      * @param  int    $offset
      * @return self
      */
@@ -453,9 +478,10 @@ class DB extends AbstractDB
 
     /**
      * Set Mysql ORDER
-     * @param  string $col  Mysql Column
-     * @param  string $sort Mysql sort type. Only "ASC" OR "DESC" is allowed, anything else will become "ASC".
+     * @param string|AttrInterface $col Mysql Column
+     * @param string $sort Mysql sort type. Only "ASC" OR "DESC" is allowed, anything else will become "ASC".
      * @return self
+     * @throws DBValidationException
      */
     public function order(string|AttrInterface $col, string $sort = "ASC"): self
     {
@@ -465,13 +491,13 @@ class DB extends AbstractDB
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
         $sort = $this->orderSort($sort); // Whitelist
-        $this->order[] = "{$col} {$sort}";
+        $this->order[] = "$col $sort";
         return $this;
     }
 
     /**
      * Raw Mysql ORDER input
-     * Uses vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
+     * Uses sprint to mysql prep/protect input in string. Prep string values needs to be closed manually
      * @param  string    $sql     SQL string example: (id ASC, parent DESC)
      * @param  array     $arr     Mysql prep values
      * @return self
@@ -487,8 +513,9 @@ class DB extends AbstractDB
 
     /**
      * Add group
-     * @param  array $columns
+     * @param array $columns
      * @return self
+     * @throws DBValidationException
      */
     public function group(...$columns): self
     {
@@ -501,11 +528,14 @@ class DB extends AbstractDB
 
     /**
      * Mysql JOIN query (Default: INNER)
-     * @param  string|array|MigrateInterface    $table  Mysql table name (if array e.g. [TABLE_NAME, ALIAS]) or MigrateInterface instance
-     * @param  array|string                     $where  Where data (as array or string e.g. string is raw)
-     * @param  array                            $sprint Use sprint to prep data
-     * @param  string                           $type   Type of join
+     * @param string|array|MigrateInterface $table Mysql table name (if array e.g. [TABLE_NAME, ALIAS]) or MigrateInterface instance
+     * @param string|array|null $where Where data (as array or string e.g. string is raw)
+     * @param array $sprint Use sprint to prep data
+     * @param string $type Type of join
      * @return self
+     * @throws ConnectException
+     * @throws DBQueryException
+     * @throws DBValidationException
      */
     public function join(
         string|array|MigrateInterface $table,
@@ -517,13 +547,13 @@ class DB extends AbstractDB
             $this->join = array_merge($this->join, $this->buildJoinFromMig($table, $type));
         } else {
             if (is_null($where)) {
-                throw new DBQueryException("You need to specify the argumnet 2 (where) value!", 1);
+                throw new DBQueryException("You need to specify the argument 2 (where) value!", 1);
             }
 
             $prefix = Connect::getInstance()->getHandler()->getPrefix();
             $arr = $this->sperateAlias($table);
             $table = (string)$this->prep($arr['table'], false);
-            $alias = (!is_null($arr['alias'])) ? " {$arr['alias']}" : " {$table}";
+            $alias = (!is_null($arr['alias'])) ? " {$arr['alias']}" : " $table";
 
             if (is_array($where)) {
                 $data = array();
@@ -547,8 +577,8 @@ class DB extends AbstractDB
                 $out = $this->sprint($where, $sprint);
             }
             $type = $this->joinTypes(strtoupper($type)); // Whitelist
-            $this->join[] = "{$type} JOIN {$prefix}{$table}{$alias} ON " . $out;
-            $this->joinedTables[$table] = "{$prefix}{$table}";
+            $this->join[] = "$type JOIN $prefix$table$alias ON " . $out;
+            $this->joinedTables[$table] = "$prefix$table";
         }
         return $this;
     }
@@ -564,7 +594,7 @@ class DB extends AbstractDB
     }
 
     /**
-     * Exaplain the mysql query. Will tell you how you can make improvements
+     * Explain the mysql query. Will tell you how you can make improvements
      * @return self
      */
     public function explain(): self
@@ -595,14 +625,14 @@ class DB extends AbstractDB
 
     /**
      * Create INSERT or UPDATE set Mysql input to insert
-     * @param  string|array|AttrInterface $key   (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
-     * @param  string|array|AttrInterface $value If key is string then value will pair with key "Lorem ipsum"
+     * @param string|array|AttrInterface $key (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
+     * @param string|array|AttrInterface|null $value If key is string then value will pair with key "Lorem ipsum"
      * @return self
      */
     public function set(string|array|AttrInterface $key, string|array|AttrInterface $value = null): self
     {
         if (is_array($key)) {
-            $this->set = array_merge($this->set, $this->prepArr($key, true));
+            $this->set = array_merge($this->set, $this->prepArr($key));
         } else {
             $this->set[(string)$key] = $this->prep($value);
         }
@@ -610,9 +640,9 @@ class DB extends AbstractDB
     }
 
     /**
-     * UPROTECTED: Create INSERT or UPDATE set Mysql input to insert
+     * UNPROTECTED: Create INSERT or UPDATE set Mysql input to insert
      * @param string $key   Mysql column
-     * @param string $value Input/insert value (UPROTECTED and Will not enclose)
+     * @param string $value Input/insert value (UNPROTECTED and Will not enclose)
      */
     public function setRaw(string $key, string $value): self
     {
@@ -637,7 +667,7 @@ class DB extends AbstractDB
         $this->dupSet = array();
         if (!is_null($key)) {
             if (is_array($key)) {
-                $this->dupSet = $this->prepArr($key, true);
+                $this->dupSet = $this->prepArr($key);
             } else {
                 $this->dupSet[$key] = $this->prep($value);
             }
@@ -676,6 +706,7 @@ class DB extends AbstractDB
 
     /**
      * Build on insert set sql string part
+     * @param array|null $arr
      * @return string
      */
     private function buildInsertSet(?array $arr = null): string
@@ -686,11 +717,12 @@ class DB extends AbstractDB
         $columns = array_keys($arr);
         $columns = implode(",", $columns);
         $values = implode(",", $this->set);
-        return "({$columns}) VALUES ({$values})";
+        return "($columns) VALUES ($values)";
     }
 
     /**
      * Build on update set sql string part
+     * @param array|null $arr
      * @return string
      */
     private function buildUpdateSet(?array $arr = null): string
@@ -700,7 +732,7 @@ class DB extends AbstractDB
         }
         $new = array();
         foreach ($arr as $key => $val) {
-            $new[] = "{$key} = {$val}";
+            $new[] = "$key = $val";
         }
         return implode(",", $new);
     }
@@ -720,19 +752,19 @@ class DB extends AbstractDB
 
     /**
      * Will build where string
-     * @param  string $prefix
-     * @param  array  $where
+     * @param string $prefix
+     * @param array|null $where
      * @return string
      */
     private function buildWhere(string $prefix, ?array $where): string
     {
         $out = "";
         if (!is_null($where)) {
-            $out = " {$prefix}";
+            $out = " $prefix";
             $index = 0;
             foreach ($where as $array) {
                 $firstAnd = key($array);
-                $out .= (($index > 0) ? " {$firstAnd}" : "") . " (";
+                $out .= (($index > 0) ? " $firstAnd" : "") . " (";
                 $out .= $this->whereArrToStr($array);
                 $out .= ")";
                 $index++;
@@ -759,8 +791,8 @@ class DB extends AbstractDB
         if (is_null($this->limit) && !is_null($this->offset)) {
             $this->limit = 1;
         }
-        $offset = (!is_null($this->offset)) ? ",{$this->offset}" : "";
-        return (!is_null($this->limit)) ? " LIMIT {$this->limit}{$offset}" : "";
+        $offset = (!is_null($this->offset)) ? ",$this->offset" : "";
+        return (!is_null($this->limit)) ? " LIMIT $this->limit$offset" : "";
     }
 
     /**
@@ -773,16 +805,11 @@ class DB extends AbstractDB
             $inst = (!is_null($this->dynamic)) ? call_user_func_array($this->dynamic[0], $this->dynamic[1]) : $this->{$this->method}();
 
             if (is_null($inst->sql)) {
-                throw new DBQueryException("The Method \"{$inst->method}\" expect to return a sql " .
+                throw new DBQueryException("The Method 1 \"$inst->method\" expect to return a sql " .
                     "building method (like return @select() or @insert()).", 1);
             }
         } else {
-            if (is_null($this->sql)) {
-                $method = is_null($this->method) ? "NULL" : $this->method;
-                throw new DBQueryException("Method \"{$method}\" does not exists! You need to create a method that with " .
-                    "same name as static, that will build the query you are after. " .
-                    "Take a look att method @method->select.", 1);
-            }
+            $this->select();
         }
     }
 

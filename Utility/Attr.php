@@ -14,7 +14,7 @@ class Attr implements AttrInterface
     private $prep = true;
     private $enclose = true;
     private $jsonEncode = true;
-    private $encode = true;
+    private $encode = false;
 
     /**
      * Initiate the instance

@@ -16,7 +16,7 @@ class SQLiteHandler implements HandlerInterface
     private ?string $charSetName = null;
     private string $charset = "UTF-8";
     private string $prefix = "";
-    private SQLite3 $connection;
+    private ?SQLite3 $connection;
 
     public function __construct(string $database)
     {
@@ -51,6 +51,19 @@ class SQLiteHandler implements HandlerInterface
             throw new InvalidArgumentException("The Prefix has to end with an underscore e.g. (prefix\"_\")!", 1);
         }
         $this->prefix = $prefix;
+    }
+
+    /**
+     * Check if a connections is open
+     * @return bool
+     */
+    public function hasConnection(): bool
+    {
+        if (!is_null($this->connection)) {
+            $result = $this->connection->querySingle('PRAGMA quick_check');
+            return $result === 'ok';
+        }
+        return false;
     }
 
     /**

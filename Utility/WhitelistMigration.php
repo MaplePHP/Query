@@ -78,11 +78,13 @@ class WhitelistMigration
 
     /**
      * Validate: Whitelist columns
+     * @param array $columns
      * @return bool
      */
     public function columns(array $columns): bool
     {
-        foreach ($columns as $name) {
+        /*
+         foreach ($columns as $name) {
             if (($colPrefix = strpos($name, ".")) !== false) {
                 $name = substr($name, $colPrefix + 1);
             }
@@ -93,6 +95,7 @@ class WhitelistMigration
                 }
             }
         }
+         */
         return true;
     }
 

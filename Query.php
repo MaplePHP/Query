@@ -9,6 +9,7 @@ use MaplePHP\Query\Interfaces\DBInterface;
 class Query
 {
     private $sql;
+    private ?string $pluck = null;
 
     public function __construct(string|DBInterface $sql)
     {
@@ -18,6 +19,10 @@ class Query
         }
     }
 
+    public function setPluck(?string $pluck): void
+    {
+        $this->pluck = $pluck;
+    }
     /**
      * Execute query result
      * @return object|array|bool
@@ -34,23 +39,27 @@ class Query
 
     /**
      * Execute query result And fetch as obejct
-     * @return bool|object|array
+     * @return bool|object|string
      */
-    public function get(): bool|object|array
+    public function get(): bool|object|string
     {
         return $this->obj();
     }
 
     /**
      * SAME AS @get(): Execute query result And fetch as obejct
-     * @return bool|object (Mysql result)
+     * @return bool|object|string (Mysql result)
      * @throws ConnectException
      */
-    final public function obj(): bool|object
+    final public function obj(): bool|object|string
     {
         $result = $this->execute();
         if (is_object($result) && $result->num_rows > 0) {
-            return $result->fetch_object();
+            $obj = $result->fetch_object();
+            if(!is_null($this->pluck)) {
+                $obj = $obj->{$this->pluck};
+            }
+            return $obj;
         }
         return false;
     }
@@ -69,6 +78,11 @@ class Query
         $result = $this->execute();
         if (is_object($result) && $result->num_rows > 0) {
             while ($row = $result->fetch_object()) {
+
+                if(!is_null($this->pluck)) {
+                    $row = $row->{$this->pluck};
+                }
+
                 if ($callback) {
                     $select = $callback($row, $key);
                 }

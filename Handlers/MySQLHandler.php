@@ -18,7 +18,7 @@ class MySQLHandler implements HandlerInterface
     private string $charset = "utf8mb4";
     private int $port;
     private string $prefix = "";
-    private mysqli $connection;
+    private ?mysqli $connection;
 
     public function __construct(string $server, string $user, string $pass, string $dbname, int $port = 3306)
     {
@@ -57,6 +57,15 @@ class MySQLHandler implements HandlerInterface
             throw new InvalidArgumentException("The Prefix has to end with a underscore e.g. (prefix\"_\")!", 1);
         }
         $this->prefix = $prefix;
+    }
+
+    /**
+     * Check if a connections is open
+     * @return bool
+     */
+    public function hasConnection(): bool
+    {
+        return (!is_null($this->connection) && $this->connection->ping());
     }
 
     /**
@@ -176,4 +185,5 @@ class MySQLHandler implements HandlerInterface
         $this->connection->begin_transaction();
         return $this->connection;
     }
+
 }

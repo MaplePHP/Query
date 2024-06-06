@@ -912,7 +912,7 @@ class Create
     {
         $table = Connect::getInstance()->prep($table);
         $col = Connect::getInstance()->prep($col);
-        $dbName = Connect::getInstance()->getDBName();
+        $dbName = Connect::getInstance()->getHandler()->getDBName();
         $result = Connect::getInstance()->query("SELECT TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME, CONSTRAINT_NAME FROM " .
             "INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '{$dbName}' AND " .
             "TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");

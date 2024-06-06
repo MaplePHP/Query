@@ -5,12 +5,16 @@ namespace MaplePHP\Query;
 
 use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\AttrInterface;
+use MaplePHP\Query\Interfaces\MigrateInterface;
 use MaplePHP\Query\Utility\Attr;
 use mysqli;
 
+/**
+ * @method static select(string $string, string|array|MigrateInterface $array)
+ * @method static table(string $string)
+ */
 class Connect
 {
-
     private $handler;
     private static array $inst;
     private $db;
@@ -27,12 +31,24 @@ class Connect
     private function __clone() {
     }
 
+    /**
+     * Access query builder intance
+     * @param string $name
+     * @param array $arguments
+     * @return mixed
+     */
     public static function __callStatic(string $name, array $arguments)
     {
         $inst = new DB();
         return $inst::$name(...$arguments);
     }
 
+    /**
+     * Set connection handler
+     * @param $handler
+     * @param string|null $key
+     * @return self
+     */
     public static function setHandler($handler, ?string $key = null): self
     {
         $key = self::getKey($key);
@@ -42,6 +58,12 @@ class Connect
         return self::$inst[$key];
     }
 
+    /**
+     * Get default instance or secondary instances with key
+     * @param string|null $key
+     * @return self
+     * @throws ConnectException
+     */
     public static function getInstance(?string $key = null): self
     {
         $key = self::getKey($key);
@@ -52,18 +74,32 @@ class Connect
         return self::$inst[$key];
     }
 
-    private static function hasInstance(?string $key = null): bool
+    /**
+     * Check if default instance or secondary instances exist for key
+     * @param string|null $key
+     * @return bool
+     */
+    public static function hasInstance(?string $key = null): bool
     {
         $key = self::getKey($key);
         return (isset(self::$inst[$key]) && (self::$inst[$key] instanceof self));
     }
 
+    /**
+     * Get the possible connection key
+     * @param string|null $key
+     * @return string
+     */
     private static function getKey(?string $key = null): string
     {
         $key = (is_null($key)) ? "default" : $key;
         return $key;
     }
 
+    /**
+     * Access the connection handler
+     * @return mixed
+     */
     function getHandler() {
         return $this->handler;
     }
@@ -83,6 +119,15 @@ class Connect
     public function getPrefix(): string
     {
         return $this->handler->getPrefix();
+    }
+
+    /**
+     * Check if a connections is open
+     * @return bool
+     */
+    public function hasConnection(): bool
+    {
+        return $this->handler->hasConnection();
     }
 
     /**

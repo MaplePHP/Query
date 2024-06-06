@@ -3,8 +3,8 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query;
 
+use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Utility\Attr;
-use MaplePHP\Query\Handlers\MySqliHandler;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
@@ -284,7 +284,8 @@ abstract class AbstractDB implements DBInterface
 
     /**
      * Mysql Prep/protect string
-     * @param  mixed $val
+     * @param mixed $val
+     * @param bool $enclose
      * @return AttrInterface
      */
     final protected function prep(mixed $val, bool $enclose = true): AttrInterface
@@ -347,15 +348,15 @@ abstract class AbstractDB implements DBInterface
      */
     final protected function extractCamelCase(string $value): array
     {
-        $arr = preg_split('#([A-Z][^A-Z]*)#', $value, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
-        return $arr;
+        return preg_split('#([A-Z][^A-Z]*)#', $value, 0, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_NO_EMPTY);
     }
 
     /**
      * Build join data from Migrate data
-     * @param  MigrateInterface $mig
-     * @param  string           $type Join type (INNER, LEFT, ...)
+     * @param MigrateInterface $mig
+     * @param string $type Join type (INNER, LEFT, ...)
      * @return array
+     * @throws ConnectException
      */
     final protected function buildJoinFromMig(MigrateInterface $mig, string $type): array
     {
@@ -370,16 +371,16 @@ abstract class AbstractDB implements DBInterface
             if (isset($row['fk'])) {
                 foreach ($row['fk'] as $a) {
                     if ($a['table'] === (string)$this->table) {
-                        $joinArr[] = "{$type} JOIN " . $prefix . $migTable . " " . $migTable .
-                        " ON (" . $migTable . ".{$col} = {$a['table']}.{$a['column']})";
+                        $joinArr[] = "$type JOIN " . $prefix . $migTable . " " . $migTable .
+                        " ON (" . $migTable . ".$col = {$a['table']}.{$a['column']})";
                     }
                 }
             } else {
                 foreach ($main as $c => $a) {
                     foreach ($a as $t => $d) {
                         if (in_array($col, $d)) {
-                            $joinArr[] = "{$type} JOIN " . $prefix . $migTable . " " . $migTable .
-                            " ON ({$t}.{$col} = {$this->alias}.{$c})";
+                            $joinArr[] = "$type JOIN " . $prefix . $migTable . " " . $migTable .
+                            " ON ($t.$col = $this->alias.$c)";
                         }
                     }
                 }
@@ -407,19 +408,21 @@ abstract class AbstractDB implements DBInterface
 
     /**
      * Query result
-     * @param  string|self $sql
-     * @param  string|null $method
-     * @param  array $args
-     * @return array|object|bool
+     * @param string|self $sql
+     * @param string|null $method
+     * @param array $args
+     * @return array|object|bool|string
+     * @throws DBQueryException
      */
-    final protected function query(string|self $sql, ?string $method = null, array $args = []): array|object|bool
+    final protected function query(string|self $sql, ?string $method = null, array $args = []): array|object|bool|string
     {
         $query = new Query($sql);
+        $query->setPluck($this->pluck);
         if (!is_null($method)) {
             if (method_exists($query, $method)) {
                 return call_user_func_array([$query, $method], $args);
             }
-            throw new DBQueryException("Method \"{$method}\" does not exists!", 1);
+            throw new DBQueryException("Method \"$method\" does not exists!", 1);
         }
         return $query;
     }
