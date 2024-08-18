@@ -35,6 +35,7 @@ class DB extends AbstractDB
     private $viewName;
     private $sql;
     private $dynamic;
+    private ?string $returning = null;
     protected ?string $pluck = null;
 
     /**
@@ -52,7 +53,9 @@ class DB extends AbstractDB
             $table = array_pop($args);
             $inst = self::table($table);
             $inst->method = $method;
-            $prefix = Connect::getInstance()->getHandler()->getPrefix();
+            $inst->setConnKey(Connect::$current);
+            $prefix = Connect::getInstance(Connect::$current)->getHandler()->getPrefix();
+
             switch ($inst->method) {
                 case 'select':
                 case 'selectView':
@@ -77,9 +80,11 @@ class DB extends AbstractDB
                     $inst->dynamic = [[$inst, $inst->method], $args];
                     break;
             }
+
         } else {
             $inst = new self();
         }
+
         return $inst;
     }
 
@@ -151,6 +156,8 @@ class DB extends AbstractDB
         $inst->alias = $data['alias'];
         $inst->table = $inst->getAttr($data['table'])->enclose(false);
         $inst->mig = $mig;
+        $inst->setConnKey(Connect::$current);
+
         if (is_null($inst->alias)) {
             $inst->alias = $inst->table;
         }
@@ -179,10 +186,6 @@ class DB extends AbstractDB
         return $inst;
     }
 
-    static function _select($col, $table) {
-        return self::table($table)->columns($col);
-    }
-
     /**
      * Build SELECT sql code (The method will be auto called in method build)
      * @method static __callStatic
@@ -197,10 +200,8 @@ class DB extends AbstractDB
         $having = $this->buildWhere("HAVING", $this->having);
         $order = (!is_null($this->order)) ? " ORDER BY " . implode(",", $this->order) : "";
         $limit = $this->buildLimit();
-
         $this->sql = "{$this->explain}SELECT $this->noCache$this->calRows$this->distinct$columns FROM " .
         $this->getTable(true) . "$join$where$this->group$having$order$limit$this->union";
-
         return $this;
     }
 
@@ -221,7 +222,7 @@ class DB extends AbstractDB
     protected function insert(): self
     {
         $this->sql = "{$this->explain}INSERT INTO " . $this->getTable() . " " .
-        $this->buildInsertSet() . $this->buildDuplicate();
+        $this->buildInsertSet() . $this->buildDuplicate() . $this->buildReturning();
         return $this;
     }
 
@@ -236,7 +237,7 @@ class DB extends AbstractDB
         $limit = $this->buildLimit();
 
         $this->sql = "{$this->explain}UPDATE " . $this->getTable() . "$join SET " .
-        $this->buildUpdateSet() . "$where$limit}";
+        $this->buildUpdateSet() . "$where$limit}"  . $this->buildReturning();
         return $this;
     }
 
@@ -527,6 +528,17 @@ class DB extends AbstractDB
     }
 
     /**
+     * Postgre specific function
+     * @param string $column
+     * @return $this
+     */
+    public function returning(string $column): self
+    {
+        $this->returning = (string)$this->prep($column);
+        return $this;
+    }
+
+    /**
      * Mysql JOIN query (Default: INNER)
      * @param string|array|MigrateInterface $table Mysql table name (if array e.g. [TABLE_NAME, ALIAS]) or MigrateInterface instance
      * @param string|array|null $where Where data (as array or string e.g. string is raw)
@@ -550,7 +562,7 @@ class DB extends AbstractDB
                 throw new DBQueryException("You need to specify the argument 2 (where) value!", 1);
             }
 
-            $prefix = Connect::getInstance()->getHandler()->getPrefix();
+            $prefix = $this->connInst()->getHandler()->getPrefix();
             $arr = $this->sperateAlias($table);
             $table = (string)$this->prep($arr['table'], false);
             $alias = (!is_null($arr['alias'])) ? " {$arr['alias']}" : " $table";
@@ -738,6 +750,19 @@ class DB extends AbstractDB
     }
 
     /**
+     * Will build a returning value that can be fetched with insert id
+     * This is a PostgreSQL specific function.
+     * @return string
+     */
+    private function buildReturning(): string
+    {
+        if(!is_null($this->returning) && $this->connInst()->getHandler()->getType() === "postgresql") {
+            return " RETURNING $this->returning";
+        }
+        return "";
+    }
+
+    /**
      * Build on duplicate sql string part
      * @return string
      */
@@ -797,7 +822,7 @@ class DB extends AbstractDB
 
     /**
      * Used to call method that builds SQL queries
-     * @throws DBQueryException
+     * @throws DBQueryException|DBValidationException
      */
     final protected function build(): void
     {
@@ -816,7 +841,7 @@ class DB extends AbstractDB
     /**
      * Generate SQL string of current instance/query
      * @return string
-     * @throws DBQueryException
+     * @throws DBQueryException|DBValidationException
      */
     public function sql(): string
     {
@@ -825,41 +850,21 @@ class DB extends AbstractDB
     }
 
     /**
-     * Start Transaction
-     * @return mixed
-     * @throws ConnectException
-     */
-    public static function transaction(): mixed
-    {
-        return Connect::getInstance()->getHandler()->transaction();
-    }
-
-    /**
-     * Get return a new generated UUID
-     * DEPRECATED: Will be moved to Connect for starter
-     * @throws ConnectException|DBQueryException
-     */
-    public static function getUUID(): ?string
-    {
-        $result = Connect::getInstance()->query("SELECT UUID()");
-        if (is_object($result)) {
-            if ($result->num_rows > 0) {
-                $row = $result->fetch_row();
-                return ($row[0] ?? null);
-            }
-            return null;
-        } else {
-            throw new DBQueryException(Connect::getInstance()->DB()->error, 1);
-        }
-    }
-
-    /**
      * Get insert AI ID from prev inserted result
      * @return int|string
-     * @throws ConnectException
+     * @throws ConnectException|DBQueryException
      */
     public function insertID(): int|string
     {
-        return Connect::getInstance()->DB()->insert_id;
+        if($this->connInst()->getHandler()->getType() === "postgresql") {
+            if(is_null($this->returning)) {
+                throw new DBQueryException("You need to specify the returning column when using PostgreSQL.");
+            }
+            return $this->connInst()->DB()->insert_id($this->returning);
+        }
+        if($this->connInst()->getHandler()->getType() === "sqlite") {
+            return $this->connInst()->DB()->lastInsertRowID();
+        }
+        return $this->connInst()->DB()->insert_id;
     }
 }

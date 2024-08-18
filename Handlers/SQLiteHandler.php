@@ -7,8 +7,9 @@ use Exception;
 use InvalidArgumentException;
 use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\HandlerInterface;
+use MaplePHP\Query\Handlers\SQLite\SQLiteConnect;
 use SQLite3;
-use SQLite3Result;
+use MaplePHP\Query\Handlers\SQLite\SQLiteResult;
 
 class SQLiteHandler implements HandlerInterface
 {
@@ -16,7 +17,7 @@ class SQLiteHandler implements HandlerInterface
     private ?string $charSetName = null;
     private string $charset = "UTF-8";
     private string $prefix = "";
-    private ?SQLite3 $connection;
+    private ?SQLiteConnect $connection;
 
     public function __construct(string $database)
     {
@@ -68,13 +69,13 @@ class SQLiteHandler implements HandlerInterface
 
     /**
      * Connect to database
-     * @return SQLite3
+     * @return SQLiteConnect
      * @throws ConnectException
      */
-    public function execute(): SQLite3
+    public function execute(): SQLiteConnect
     {
         try {
-            $this->connection = new SQLite3($this->database);
+            $this->connection = new SQLiteConnect($this->database);
             
         } catch (Exception $e) {
             throw new ConnectException('Failed to connect to SQLite: ' . $e->getMessage(), 1);
@@ -112,9 +113,9 @@ class SQLiteHandler implements HandlerInterface
     /**
      * Query sql string
      * @param  string $sql
-     * @return SQLite3Result|false
+     * @return SQLiteResult|false
      */
-    public function query(string $sql): bool|SQLite3Result
+    public function query(string $sql): bool|SQLiteResult
     {
         return $this->connection->query($sql);
     }
@@ -135,7 +136,7 @@ class SQLiteHandler implements HandlerInterface
      */
     public function prep(string $value): string
     {
-        return SQLite3::escapeString($value);
+        return SQLiteConnect::escapeString($value);
     }
 
     /**
@@ -166,11 +167,11 @@ class SQLiteHandler implements HandlerInterface
 
     /**
      * Start Transaction
-     * @return SQLite3
+     * @return SQLiteConnect
      */
-    public function transaction(): SQLite3
+    public function transaction(): SQLiteConnect
     {
-        $this->connection->exec('BEGIN TRANSACTION');
+        $this->connection->begin_transaction();
         return $this->connection;
     }
 }

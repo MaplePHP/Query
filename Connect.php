@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query;
 
+use InvalidArgumentException;
 use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;
@@ -10,13 +11,14 @@ use MaplePHP\Query\Utility\Attr;
 use mysqli;
 
 /**
- * @method static select(string $string, string|array|MigrateInterface $array)
+ * @method static select(string $columns, string|array|MigrateInterface $table)
  * @method static table(string $string)
  */
 class Connect
 {
     private $handler;
     private static array $inst;
+    public static string $current = "default";
     private $db;
 
     private function __construct($handler)
@@ -32,7 +34,7 @@ class Connect
     }
 
     /**
-     * Access query builder intance
+     * Access query builder instance
      * @param string $name
      * @param array $arguments
      * @return mixed
@@ -40,6 +42,7 @@ class Connect
     public static function __callStatic(string $name, array $arguments)
     {
         $inst = new DB();
+        $inst->setConnKey(self::$current);
         return $inst::$name(...$arguments);
     }
 
@@ -52,10 +55,30 @@ class Connect
     public static function setHandler($handler, ?string $key = null): self
     {
         $key = self::getKey($key);
-        if(!self::hasInstance($key)) {
-            self::$inst[$key] = new self($handler);
+        if(self::hasInstance($key)) {
+            throw new InvalidArgumentException("A handler is already connected with key \"$key\"!");
         }
+        self::$inst[$key] = new self($handler);
         return self::$inst[$key];
+    }
+
+    /**
+     * Remove a handler
+     * @param string $key
+     * @return void
+     */
+    public static function removeHandler(string $key): void
+    {
+        if($key === "default") {
+            throw new InvalidArgumentException("You can not remove the default handler!");
+        }
+        if(!self::hasInstance($key)) {
+            throw new InvalidArgumentException("The handler with with key \"$key\" does not exist!");
+        }
+        unset(self::$inst[$key]);
+        if(self::$current === $key) {
+            self::$current = "default";
+        }
     }
 
     /**
@@ -68,9 +91,9 @@ class Connect
     {
         $key = self::getKey($key);
         if(!self::hasInstance($key)) {
-            throw new ConnectException("Connect Error: No Connection Found");
+            throw new ConnectException("Connection Error: No active connection or connection instance found.");
         }
-
+        self::$current = $key;
         return self::$inst[$key];
     }
 

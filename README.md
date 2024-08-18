@@ -1,6 +1,6 @@
 
 # MaplePHP - Database query builder
-MaplePHP - Database query builder is a powerful yet **user-friendly** library for making **safe** database queries, with support for both MySQL and SQLite.
+MaplePHP - Database query builder is a powerful yet **user-friendly** library for making **safe** database queries, with support for MySQL, SQLite and PostgreSQL.
 
 ### Contents
 - [Connect to the database](#connect-to-the-database)
@@ -20,17 +20,13 @@ $handler = new MySQLHandler(
     $user,
     $password,
     $databaseName,
-    $port
+    $port = 3306
 );
 
-// Maple DB do also support SQLite. 
-//$handler = new SQLiteHandler("database.SQLite");
-
 // Recommend: Set TABLE prefix. This will make your life easier
-// MaplePHP DB class will "automatically prepend" it to the table names.
+// MaplePHP will automatically prepend the prefix to the table names.
 $handler->setPrefix("maple_");
 $handler->setCharset("utf8mb4");
-
 $connect = Connect::setHandler($handler);
 $connect->execute();
 ```
@@ -42,6 +38,16 @@ use MaplePHP\Query\Connect;
 $SQLiteHandler = new SQLiteHandler(__DIR__ . "/database.SQLite");
 $SQLiteHandler->setPrefix("mp_");
 $connect = Connect::setHandler($SQLiteHandler);
+$connect->execute();
+```
+
+### Connect to PostgreSQL
+```php
+use MaplePHP\Query\Connect;
+
+$postgreSQLHandler = new PostgreSQLHandler($server, $user, $password, $databaseName, $port = 5432);
+$postgreSQLHandler->setPrefix("mp_");
+$connect = Connect::setHandler($postgreSQLHandler);
 $connect->execute();
 ```
 
@@ -150,7 +156,7 @@ $select->joinCross("tableName", ["b.user_id" => "a.id"]);
 
 ### Pluck
 ```php
-$pluck->pluck("a.name")->get();
+$select->pluck("a.name")->get();
 ```
 
 

@@ -33,6 +33,7 @@ abstract class AbstractDB implements DBInterface
     protected $fkData;
     protected $joinedTables;
 
+    protected string $connKey = "default";
 
     /**
      * Build SELECT sql code (The method will be auto called in method build)
@@ -84,13 +85,21 @@ abstract class AbstractDB implements DBInterface
      */
     abstract protected function showView(): self;
 
+    public function setConnKey(?string $key) {
+        $this->connKey = is_null($key) ? "default" : $key;
+    }
+    
+    public function connInst() {
+        return Connect::getInstance($this->connKey);
+    }
+    
     /**
      * Access Mysql DB connection
      * @return \mysqli
      */
     public function connect()
     {
-        return Connect::getInstance()->DB();
+        return $this->connInst()->DB();
     }
 
     /**
@@ -100,7 +109,7 @@ abstract class AbstractDB implements DBInterface
     public function getTable(bool $withAlias = false): string
     {
         $alias = ($withAlias && !is_null($this->alias)) ? " {$this->alias}" : "";
-        return Connect::getInstance()->getHandler()->getPrefix() . $this->table . $alias;
+        return $this->connInst()->getHandler()->getPrefix() . $this->table . $alias;
     }
 
     /**
@@ -361,7 +370,7 @@ abstract class AbstractDB implements DBInterface
     final protected function buildJoinFromMig(MigrateInterface $mig, string $type): array
     {
         $joinArr = array();
-        $prefix = Connect::getInstance()->getHandler()->getPrefix();
+        $prefix = $this->connInst()->getHandler()->getPrefix();
         $main = $this->getMainFKData();
         $data = $mig->getData();
         $this->mig->mergeData($data);
@@ -391,7 +400,6 @@ abstract class AbstractDB implements DBInterface
         return $joinArr;
     }
 
-
     /**
      * Build on YB to col sql string part
      * @return string|null
@@ -416,7 +424,7 @@ abstract class AbstractDB implements DBInterface
      */
     final protected function query(string|self $sql, ?string $method = null, array $args = []): array|object|bool|string
     {
-        $query = new Query($sql);
+        $query = new Query($sql, $this->connInst());
         $query->setPluck($this->pluck);
         if (!is_null($method)) {
             if (method_exists($query, $method)) {

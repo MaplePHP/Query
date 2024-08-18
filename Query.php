@@ -10,19 +10,22 @@ class Query
 {
     private $sql;
     private ?string $pluck = null;
+    private ?Connect $connection = null;
 
-    public function __construct(string|DBInterface $sql)
+    public function __construct(string|DBInterface $sql, $connection = null)
     {
         $this->sql = $sql;
         if ($sql instanceof DBInterface) {
             $this->sql = $sql->sql();
         }
+        $this->connection = is_null($connection) ? Connect::getInstance() : $connection;
     }
 
     public function setPluck(?string $pluck): void
     {
         $this->pluck = $pluck;
     }
+
     /**
      * Execute query result
      * @return object|array|bool
@@ -30,16 +33,17 @@ class Query
      */
     public function execute(): object|array|bool
     {
-        if ($result = Connect::getInstance()->query($this->sql)) {
+        if ($result = $this->connection->query($this->sql)) {
             return $result;
         } else {
-            throw new ConnectException(Connect::getInstance()->DB()->error, 1);
+            throw new ConnectException($this->connection->DB()->error, 1);
         }
     }
 
     /**
-     * Execute query result And fetch as obejct
+     * Execute query result And fetch as object
      * @return bool|object|string
+     * @throws ConnectException
      */
     public function get(): bool|object|string
     {
@@ -51,11 +55,11 @@ class Query
      * @return bool|object|string (Mysql result)
      * @throws ConnectException
      */
-    final public function obj(): bool|object|string
+    final public function obj(string $class = "stdClass", array $constructor_args = []): bool|object|string
     {
         $result = $this->execute();
         if (is_object($result) && $result->num_rows > 0) {
-            $obj = $result->fetch_object();
+            $obj = $result->fetch_object($class, $constructor_args);
             if(!is_null($this->pluck)) {
                 $obj = $obj->{$this->pluck};
             }
@@ -70,14 +74,14 @@ class Query
      * @return array
      * @throws ConnectException
      */
-    final public function fetch(?callable $callback = null): array
+    final public function fetch(?callable $callback = null, string $class = "stdClass", array $constructor_args = []): array
     {
         $key = 0;
         $select = null;
         $arr = array();
         $result = $this->execute();
         if (is_object($result) && $result->num_rows > 0) {
-            while ($row = $result->fetch_object()) {
+            while ($row = $result->fetch_object($class, $constructor_args)) {
 
                 if(!is_null($this->pluck)) {
                     $row = $row->{$this->pluck};
@@ -93,6 +97,7 @@ class Query
                     }
                     $arr = array_replace_recursive($arr, $select);
                 } else {
+
                     $arr[$data] = $row;
                 }
 
@@ -109,6 +114,6 @@ class Query
      */
     public function insertID(): string|int
     {
-        return Connect::getInstance()->DB()->insert_id;
+        return $this->connection->DB()->insert_id;
     }
 }

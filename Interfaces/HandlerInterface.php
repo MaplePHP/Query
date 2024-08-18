@@ -11,7 +11,7 @@ use MaplePHP\Query\Exceptions\ConnectException;
 interface HandlerInterface
 {
     /**
-     * Get database type
+     * Get database type as lover case and no spaces
      * @return string
      */
     public function getType(): string;
@@ -87,11 +87,5 @@ interface HandlerInterface
      * @return array
      */
     public function multiQuery(string $sql, object &$db = null): array;
-
-    /**
-     * Start Transaction
-     * @return mixed
-     */
-    public function transaction(): mixed;
 
 }
