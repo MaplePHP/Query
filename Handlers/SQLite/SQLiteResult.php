@@ -12,7 +12,7 @@ use SQLite3Result;
 class SQLiteResult
 {
 
-    public $index = 0;
+    public $index = -1;
     public int|string $num_rows = 0;
     public array|bool $rows = false;
     public array|bool $rowsObj = false;
@@ -135,15 +135,18 @@ class SQLiteResult
      */
     protected function preFetchData(): void
     {
-        $result = $this->query->fetchArray(SQLITE3_ASSOC);
-        if($result !== false) {
-            $this->rowsObj = $this->rows = [];
-            $this->num_rows = 0;
-            while ($row = $this->query->fetchArray(SQLITE3_ASSOC)) {
-                $this->rows[] = $row;
-                $this->rowsObj[] = (object)$row;
-                $this->num_rows++;
-            }
+        $this->rowsObj = $this->rows = [];
+        $this->num_rows = 0;
+        $obj = $arr = array();
+        while ($row = $this->query->fetchArray(SQLITE3_ASSOC)) {
+            $arr[] = $row;
+            $obj[] = (object)$row;
+            $this->num_rows++;
+        }
+
+        if(count($arr) > 0) {
+            $this->rows = $arr;
+            $this->rowsObj = $obj;
         }
     }
 
@@ -167,7 +170,7 @@ class SQLiteResult
     protected function endIndex(): void
     {
         if($this->index >= $this->num_rows) {
-            $this->index = 0;
+            $this->index = -1;
         }
     }
 
