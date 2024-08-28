@@ -3,9 +3,13 @@
 namespace MaplePHP\Query\Utility;
 
 use MaplePHP\Query\Connect;
+use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\DTO\Format\Encode;
 
+/**
+ * MAKE IMMUTABLE in future
+ */
 class Attr implements AttrInterface
 {
     private $value;
@@ -13,14 +17,14 @@ class Attr implements AttrInterface
     private $hasBeenEncoded = false;
     private $prep = true;
     private $enclose = true;
-    private $jsonEncode = true;
+    private $jsonEncode = false;
     private $encode = false;
 
     /**
      * Initiate the instance
-     * @param  array|string|int|float $value
+     * @param float|int|array|string $value
      */
-    public function __construct($value)
+    public function __construct(float|int|array|string $value)
     {
         $this->value = $value;
         $this->raw = $value;
@@ -33,13 +37,13 @@ class Attr implements AttrInterface
      */
     public static function value(array|string|int|float $value): self
     {
-        $inst = new self($value);
-        return $inst;
+        return new self($value);
     }
 
     /**
-     * Process string after your choises
+     * Process string after your choices
      * @return string
+     * @throws ConnectException
      */
     public function __toString(): string
     {
@@ -47,22 +51,24 @@ class Attr implements AttrInterface
     }
 
     /**
+     * Can only be encoded once
      * Will escape and encode values the right way buy the default
      * If prepped then quotes will be escaped and not encoded
-     * If prepped is diabled then quotes will be encoded
+     * If prepped is disabled then quotes will be encoded
      * @return string
+     * @throws ConnectException
      */
     public function getValue(): string
     {
         if (!$this->hasBeenEncoded) {
-            
             $this->hasBeenEncoded = true;
             $this->value = Encode::value($this->value)
                 ->specialChar($this->encode, ($this->prep ? ENT_NOQUOTES : ENT_QUOTES))
                 ->urlEncode(false)
                 ->encode();
-                                
-            if ($this->jsonEncode && is_array($this->value)) {
+
+            // Array values will automatically be json encoded
+            if ($this->jsonEncode || is_array($this->value)) {
                 // If prep is on then escape after json_encode, 
                 // otherwise json encode will possibly escape the escaped value
                 $this->value = json_encode($this->value);
@@ -73,7 +79,7 @@ class Attr implements AttrInterface
             }
 
             if ($this->enclose) {
-                $this->value = "'{$this->value}'";
+                $this->value = "'$this->value'";
             }
         }
         return $this->value;

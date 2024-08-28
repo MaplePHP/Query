@@ -5,8 +5,6 @@ namespace MaplePHP\Query\Utility;
 
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;
-use MaplePHP\Query\Utility\Attr;
-use MaplePHP\Query\Connect;
 
 class WhitelistMigration
 {
@@ -24,13 +22,13 @@ class WhitelistMigration
         "BOOLEAN"
     ];
 
-    private $mig;
-    private $data;
-    private $message;
+    private MigrateInterface $mig;
+    private array $data;
+    private ?string $message;
 
     /**
      * WhitelistMigration will take the migration files and use them to make a whitelist validation
-     * It kinda works like a custom built CSP filter but for the Database!
+     * It kinda works like a custom-built CSP filter but for the Database!
      * @param MigrateInterface $mig
      */
     public function __construct(MigrateInterface $mig)
@@ -69,7 +67,7 @@ class WhitelistMigration
 
     /**
      * Get possible error message
-     * @return string
+     * @return string|null
      */
     public function getMessage(): ?string
     {
@@ -115,14 +113,16 @@ class WhitelistMigration
             $key = substr($key, $colPrefix + 1);
         }
 
-        // Key is assosiated with a Internal MySQL variable then return that
+        // Key is associated with an Internal MySQL variable then return that
         // value to check if the variable type is of the right type
-        if (Connect::hasVariable($key)) {
+        /*
+         if (Connect::hasVariable($key)) {
             $value = Connect::getVariableValue($key);
         }
+        */
 
         if (!isset($this->data[$key])) {
-            $this->message = "The column ({$key}) do not exists in database table.";
+            $this->message = "The column ($key) do not exists in database table.";
             return false;
         }
 
@@ -130,10 +130,10 @@ class WhitelistMigration
         $length = (int)($this->data[$key]['length'] ?? 0);
 
         if ((in_array($type, self::TYPE_NUMERIC) && !is_numeric($value)) || !is_string($value)) {
-            $this->message = "The database column ({$key}) value type is not supported.";
+            $this->message = "The database column ($key) value type is not supported.";
             return false;
         } elseif ($length < strlen($value)) {
-            $this->message = "The database column ({$key}) value length is longer than ({$length}).";
+            $this->message = "The database column ($key) value length is longer than ($length).";
             return false;
         }
         return true;

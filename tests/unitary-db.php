@@ -6,100 +6,110 @@ use MaplePHP\Query\Handlers\PostgreSQLHandler;
 use MaplePHP\Query\Handlers\SQLiteHandler;
 use MaplePHP\Unitary\Unit;
 use MaplePHP\Query\Connect;
-use MaplePHP\Query\DB;
+
 
 // Only validate if there is a connection open!
 if (Connect::hasInstance() && Connect::getInstance()->hasConnection()) {
 
     $unit = new Unit();
+    $instances = [null, "postgresql", "sqlite"];
+
+    $sqLiteHandler = new PostgreSQLHandler("127.0.0.1", "postgres", "", "postgres");
+    $sqLiteHandler->setPrefix("maple_");
+    $connect = Connect::setHandler($sqLiteHandler, "postgresql");
+    $connect->execute();
+
+    $sqLiteHandler = new SQLiteHandler(__DIR__ . "/database.sqlite");
+    $sqLiteHandler->setPrefix("maple_");
+    $connect = Connect::setHandler($sqLiteHandler, "sqlite");
+    $connect->execute();
+
 
     // Add a title to your tests (not required)
     $unit->addTitle("Testing MaplePHP Query library!");
-    $unit->add("MySql Query builder", function ($inst) {
+    foreach($instances as $key) {
+        $message = "Error in " . (is_null($key) ? "mysql" : $key);
+        $unit->add($message, function ($inst) use ($unit, $key, $instances) {
 
-        $db = Connect::getInstance();
-        $select =  $db::select("id,a.name,b.name AS cat", ["test", "a"])->whereParent(0)->where("status", 0, ">")->limit(6);
-        $select->join(["test_category", "b"], "tid = id");
+            // Select handler
+            $db = Connect::getInstance($key);
 
-        // 3 queries
-        $obj = $select->get();
-        $arr = $select->fetch();
-        $pluck = DB::table("test")->pluck("name")->get();
+            $inst->add($db->hasConnection(), [
+                "equal" => [true],
+            ], "Missing connection");
 
-        $inst->add($obj, [
-            "isObject" => [],
-            "missingColumn" => function () use ($obj) {
-                return (isset($obj->name) && isset($obj->cat));
-            }
-        ], "Data is missing");
+            $select =  $db::select("test.id", "test")
+                ->whereBind(function ($inst) {
+                    $inst->not()
+                        ->where("status", 0)
+                        ->or()
+                        ->where("status", 0, ">");
+                })
+                ->whereParent(0)
+                ->having("id", 0, ">")
+                ->whereRaw("id > 0")
+                ->havingRaw("COUNT(id) > 0")
+                ->group("id")
+                ->distinct("id")
+                ->limit(2);
+            $select->join(["test_category", "b"], "tid = id");
+            $arr = $select->fetch();
 
-        $inst->add($arr, [
-            "isArray" => [],
-            "noRows" => function () use ($arr) {
-                return (count($arr) > 0);
-            }
-        ], "Fetch feed empty");
 
-        $inst->add($pluck, [
-            "isString" => [],
-            "length" => [1]
-        ], "Pluck is expected to return string");
+            //$unit->command()->message($select->sql());
+            $inst->add(count($arr), [
+                "equal" => [2],
+            ], "Data is missing");
 
-        $select =  $db::select("id,test.name,test_category.name AS cat", new Test)->whereParent(0)->where("status", 0, ">")->limit(6);
-        $select->join(new TestCategory);
-        $obj = $select->obj();
 
-        $inst->add($obj, [
-            "isObject" => [],
-            "missingColumn" => function () use ($obj) {
-                return (isset($obj->name) && isset($obj->cat));
-            }
-        ], "Data is missing");
-    });
+            // Test union
+            $union =  $db::select("id,name", "test");
+            $unit->command()->message(Connect::$current);
 
-    /**
-     * This will test multiple databases AND
-     * validate sqLite database
-     */
-    $unit->add("sqLite Query builder", function ($inst) {
+            $select = $db::select("cat_id AS id,name", "test_category");
 
-        $sqLiteHandler = new SQLiteHandler(__DIR__ . "/database.sqlite");
-        $sqLiteHandler->setPrefix("mp_");
-        $connect = Connect::setHandler($sqLiteHandler, "lite");
-        $connect->execute();
 
-        // Access sqLite connection
-        $select = Connect::getInstance("lite")::select("id,name,content", "test")->whereStatus(1)->limit(3);
-        $result = $select->fetch();
-        $inst->add($result, [
-            "isArray" => [],
-            "rows" => function () use ($result) {
-                return (count($result) === 3);
-            }
-        ], "Fetch should equal to 3");
-    });
+            /*
+             $select->union($union);
 
-    /**
-     * This will test multiple databases AND
-     * validate sqLite database
-     */
-    $unit->add("sqLite Query builder", function ($inst) {
 
-        $sqLiteHandler = new PostgreSQLHandler("127.0.0.1", "postgres", "", "maplephp");
-        $sqLiteHandler->setPrefix("maple_");
-        $connect = Connect::setHandler($sqLiteHandler, "psg");
-        $connect->execute();
 
-        // Access sqLite connection
-        $select = Connect::getInstance("psg")::select("id,name", ["test", "a"])->limit(2);
-        $result = $select->fetch();
-        $inst->add($result, [
-            "isArray" => [],
-            "rows" => function () use ($result) {
-                return (count($result) === 2);
-            }
-        ], "Fetch should equal to 2");
-    });
+            $arr = $select->fetch();
+
+            $inst->add(count($arr), [
+                "equal" => [16],
+            ], "Union does not seem to match");
+             */
+
+
+
+            $insert = $db::insert("test")->set([
+                "name" => "Test row",
+                "content" => "Delete this row",
+                "status" => 1,
+                "parent" => 0,
+                "create_date" => date("Y-m-d H:i:s", time()),
+            ]);
+
+
+
+
+            //print_r($db->connection());
+            //$insert->execute();
+
+
+
+
+
+
+
+
+
+
+
+
+        });
+    }
 
     $unit->execute();
 }

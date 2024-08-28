@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers\SQLite;
 
-use MaplePHP\DTO\DynamicDataAbstract;
 use ReflectionClass;
 use ReflectionException;
 use SQLite3;
@@ -11,12 +10,10 @@ use SQLite3Result;
 
 class SQLiteResult
 {
-
-    public $index = -1;
     public int|string $num_rows = 0;
-    public array|bool $rows = false;
-    public array|bool $rowsObj = false;
-
+    private int $index = -1;
+    private array|bool $rows = false;
+    private array|bool $rowsObj = false;
     private SQLite3 $connection;
     private SQLite3Result|false $query = false;
 
@@ -182,7 +179,7 @@ class SQLiteResult
      * @return object|string|null
      * @throws ReflectionException
      */
-    protected function bindToClass(object|array $data, string $class, array $constructor_args = []): object|string|null
+    final protected function bindToClass(object|array $data, string $class, array $constructor_args = []): object|string|null
     {
         $reflection = new ReflectionClass($class);
         $object = $reflection->newInstanceArgs($constructor_args);

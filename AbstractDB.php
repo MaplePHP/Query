@@ -4,12 +4,13 @@ declare(strict_types=1);
 namespace MaplePHP\Query;
 
 use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Interfaces\ConnectInterface;
 use MaplePHP\Query\Utility\Attr;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
 use MaplePHP\Query\Exceptions\DBValidationException;
-use MaplePHP\Query\Exceptions\DBQueryException;
+use MaplePHP\Query\Exceptions\ResultException;
 
 /**
  * @psalm-taint-source
@@ -32,7 +33,7 @@ abstract class AbstractDB implements DBInterface
     protected $whereProtocol = [];
     protected $fkData;
     protected $joinedTables;
-
+    protected ?string $pluck = null;
     protected string $connKey = "default";
 
     /**
@@ -85,36 +86,51 @@ abstract class AbstractDB implements DBInterface
      */
     abstract protected function showView(): self;
 
-    public function setConnKey(?string $key) {
+
+    /**
+     * Set connection
+     * @param string|null $key
+     * @return void
+     */
+    public function setConnKey(?string $key): void
+    {
         $this->connKey = is_null($key) ? "default" : $key;
     }
-    
-    public function connInst() {
+
+    /**
+     * @throws ConnectException
+     */
+    public function connInst(): Connect
+    {
         return Connect::getInstance($this->connKey);
     }
-    
+
     /**
      * Access Mysql DB connection
-     * @return \mysqli
+     * @return ConnectInterface
+     * @throws ConnectException
      */
-    public function connect()
+    public function connect(): ConnectInterface
     {
         return $this->connInst()->DB();
     }
 
     /**
      * Get current instance Table name with prefix attached
+     * @param bool $withAlias
      * @return string
+     * @throws ConnectException
      */
     public function getTable(bool $withAlias = false): string
     {
-        $alias = ($withAlias && !is_null($this->alias)) ? " {$this->alias}" : "";
+        $alias = ($withAlias && !is_null($this->alias)) ? " $this->alias" : "";
         return $this->connInst()->getHandler()->getPrefix() . $this->table . $alias;
     }
 
     /**
      * Get current instance Columns
      * @return array
+     * @throws DBValidationException
      */
     public function getColumns(): array
     {
@@ -136,7 +152,6 @@ abstract class AbstractDB implements DBInterface
     {
         return new Attr($value);
     }
-
 
     /**
      * Will reset Where input
@@ -191,17 +206,18 @@ abstract class AbstractDB implements DBInterface
     }
 
     /**
-     * Sperate Alias
-     * @param  string|array  $data
+     * Separate Alias
+     * @param string|array $data
      * @return array
+     * @throws ResultException
      */
-    final protected function sperateAlias(string|array $data): array
+    final protected function separateAlias(string|array $data): array
     {
         $alias = null;
         $table = $data;
         if (is_array($data)) {
             if (count($data) !== 2) {
-                throw new DBQueryException("If you specify Table as array then it should look " .
+                throw new ResultException("If you specify Table as array then it should look " .
                     "like this [TABLE_NAME, ALIAS]", 1);
             }
             $alias = array_pop($data);
@@ -211,10 +227,11 @@ abstract class AbstractDB implements DBInterface
     }
 
     /**
-     * Propegate where data structure
-     * @param string|AttrInterface           $key
+     * Propagate where data structure
+     * @param string|AttrInterface $key
      * @param string|int|float|AttrInterface $val
      * @param array|null                     &$data static value
+     * @throws DBValidationException
      */
     final protected function setWhereData(string|AttrInterface $key, string|int|float|AttrInterface $val, ?array &$data): void
     {
@@ -228,12 +245,12 @@ abstract class AbstractDB implements DBInterface
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
 
-        //$data[$this->whereIndex][$this->whereAnd][$this->compare][$key][] = $val;
         $data[$this->whereIndex][$this->whereAnd][$key][] = [
             "not" => $this->whereNot,
             "operator" => $this->compare,
             "value" => $val
         ];
+        $this->whereNot = null;
 
         $this->whereProtocol[$key][] = $val;
         $this->resetWhere();
@@ -251,24 +268,23 @@ abstract class AbstractDB implements DBInterface
         foreach ($array as $key => $arr) {
             foreach ($arr as $col => $a) {
                 if (is_array($a)) {
-                    foreach ($a as $int => $row) {
+                    foreach ($a as $row) {
                         if ($count > 0) {
-                            $out .= "{$key} ";
+                            $out .= "$key ";
                         }
                         if ($row['not'] === true) {
                             $out .= "NOT ";
                         }
-                        $out .= "{$col} {$row['operator']} {$row['value']} ";
+                        $out .= "$col {$row['operator']} {$row['value']} ";
                         $count++;
                     }
                     
                 } else {
-                    $out .= "{$key} {$a} ";
+                    $out .= ($count) > 0 ? "$key $a " : $a;
                     $count++;
                 }
             }
         }
-
         return $out;
     }
     
@@ -324,7 +340,7 @@ abstract class AbstractDB implements DBInterface
     }
 
     /**
-     * Use vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
+     * Use vsprintf to mysql prep/protect input in string. Prep string values needs to be enclosed manually
      * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
      * @param  array     $arr     Mysql prep values
      * @return string
@@ -351,7 +367,8 @@ abstract class AbstractDB implements DBInterface
     }
 
     /**
-     * Will extract camle case to array
+     * MOVE TO DTO ARR
+     * Will extract camelcase to array
      * @param  string $value string value with possible camel cases
      * @return array
      */
@@ -403,6 +420,7 @@ abstract class AbstractDB implements DBInterface
     /**
      * Build on YB to col sql string part
      * @return string|null
+     * @throws ConnectException
      */
     protected function getAllQueryTables(): ?string
     {
@@ -420,7 +438,7 @@ abstract class AbstractDB implements DBInterface
      * @param string|null $method
      * @param array $args
      * @return array|object|bool|string
-     * @throws DBQueryException
+     * @throws ResultException|ConnectException
      */
     final protected function query(string|self $sql, ?string $method = null, array $args = []): array|object|bool|string
     {
@@ -430,7 +448,7 @@ abstract class AbstractDB implements DBInterface
             if (method_exists($query, $method)) {
                 return call_user_func_array([$query, $method], $args);
             }
-            throw new DBQueryException("Method \"$method\" does not exists!", 1);
+            throw new ResultException("Method \"$method\" does not exists!", 1);
         }
         return $query;
     }

@@ -5,10 +5,10 @@ namespace MaplePHP\Query\Handlers;
 
 use InvalidArgumentException;
 use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Interfaces\ConnectInterface;
 use MaplePHP\Query\Interfaces\HandlerInterface;
 use MaplePHP\Query\Handlers\PostgreSQL\PostgreSQLConnect;
 use MaplePHP\Query\Handlers\PostgreSQL\PostgreSQLResult;
-use PgSql\Connection;
 
 class PostgreSQLHandler implements HandlerInterface
 {
@@ -20,7 +20,7 @@ class PostgreSQLHandler implements HandlerInterface
     private string $charset = "utf8";
     private int $port;
     private string $prefix = "";
-    private PostgreSQLConnect $connection;
+    private ?PostgreSQLConnect $connection = null;
 
     public function __construct(string $server, string $user, string $pass, string $dbname, int $port = 5432)
     {
@@ -67,19 +67,18 @@ class PostgreSQLHandler implements HandlerInterface
      */
     public function hasConnection(): bool
     {
-        return ($this->connection instanceof Connection);
+        return ($this->connection instanceof PostgreSQLConnect);
     }
 
     /**
      * Connect to database
-     * @return PostgreSQLConnect
+     * @return ConnectInterface
      * @throws ConnectException
      */
-    public function execute(): PostgreSQLConnect
+    public function execute(): ConnectInterface
     {
-
         $this->connection = new PostgreSQLConnect($this->server, $this->user, $this->pass, $this->dbname, $this->port);
-        if (!is_null($this->connection->error)) {
+        if (!empty($this->connection->error)) {
             throw new ConnectException('Failed to connect to PostgreSQL: ' . $this->connection->error, 1);
         }
         $encoded = pg_set_client_encoding($this->connection->getConnection(), $this->charset);
@@ -149,16 +148,6 @@ class PostgreSQLHandler implements HandlerInterface
     public function prep(string $value): string
     {
         return pg_escape_string($this->connection->getConnection(), $value);
-    }
-
-    /**
-     * Start Transaction
-     * @return PostgreSQLConnect
-     */
-    public function transaction(): PostgreSQLConnect
-    {
-        $this->connection->begin_transaction();
-        return $this->connection;
     }
 
     /**

@@ -5,10 +5,10 @@ namespace MaplePHP\Query\Exceptions;
 use Exception;
 
 /**
- * Class DBQueryException
+ * Class ResultException
  *
  * @package MaplePHP\Query\Exceptions
  */
-class DBQueryException extends Exception
+class ResultException extends Exception
 {
 }

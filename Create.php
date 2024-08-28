@@ -67,6 +67,7 @@ echo "</pre>";
 
 namespace MaplePHP\Query;
 
+use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Exceptions\QueryCreateException;
 
 class Create
@@ -536,11 +537,12 @@ class Create
     /**
      * Execute
      * @return array errors.
+     * @throws ConnectException
      */
     public function execute()
     {
         $sql = $this->build();
-        $error = Connect::getInstance()->multiQuery($sql, $mysqli);
+        $error = Connect::getInstance()->getHandler()->multiQuery($sql, $mysqli);
         return $error;
     }
 

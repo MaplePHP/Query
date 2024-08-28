@@ -6,6 +6,7 @@ namespace MaplePHP\Query\Handlers;
 use Exception;
 use InvalidArgumentException;
 use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Interfaces\ConnectInterface;
 use MaplePHP\Query\Interfaces\HandlerInterface;
 use MaplePHP\Query\Handlers\SQLite\SQLiteConnect;
 use SQLite3;
@@ -17,7 +18,7 @@ class SQLiteHandler implements HandlerInterface
     private ?string $charSetName = null;
     private string $charset = "UTF-8";
     private string $prefix = "";
-    private ?SQLiteConnect $connection;
+    private ?SQLiteConnect $connection = null;
 
     public function __construct(string $database)
     {
@@ -57,12 +58,14 @@ class SQLiteHandler implements HandlerInterface
     /**
      * Check if a connections is open
      * @return bool
+     * @throws \ReflectionException
      */
     public function hasConnection(): bool
     {
         if (!is_null($this->connection)) {
-            $result = $this->connection->querySingle('PRAGMA quick_check');
-            return $result === 'ok';
+            $result = $this->connection->query('PRAGMA quick_check');
+            $obj = $result->fetch_object();
+            return ($obj->quick_check ?? "") === 'ok';
         }
         return false;
     }
@@ -72,13 +75,13 @@ class SQLiteHandler implements HandlerInterface
      * @return SQLiteConnect
      * @throws ConnectException
      */
-    public function execute(): SQLiteConnect
+    public function execute(): ConnectInterface
     {
         try {
             $this->connection = new SQLiteConnect($this->database);
             
         } catch (Exception $e) {
-            throw new ConnectException('Failed to connect to SQLite: ' . $e->getMessage(), 1);
+            throw new ConnectException('Failed to connect to SQLite: ' . $e->getMessage(), $e->getCode(), $e);
         }
         return $this->connection;
     }
@@ -136,7 +139,7 @@ class SQLiteHandler implements HandlerInterface
      */
     public function prep(string $value): string
     {
-        return SQLiteConnect::escapeString($value);
+        return SQLite3::escapeString($value);
     }
 
     /**
@@ -163,15 +166,5 @@ class SQLiteHandler implements HandlerInterface
             }
         }
         return $err;
-    }
-
-    /**
-     * Start Transaction
-     * @return SQLiteConnect
-     */
-    public function transaction(): SQLiteConnect
-    {
-        $this->connection->begin_transaction();
-        return $this->connection;
     }
 }
