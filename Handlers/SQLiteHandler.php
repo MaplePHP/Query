@@ -129,7 +129,6 @@ class SQLiteHandler implements HandlerInterface
      */
     public function close(): void
     {
-        $this->connection->close();
     }
 
     /**

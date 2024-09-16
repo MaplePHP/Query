@@ -4,8 +4,8 @@ namespace MaplePHP\Query\Utility;
 
 use BadMethodCallException;
 use InvalidArgumentException;
-use MaplePHP\Query\Exceptions\DBValidationException;
 use MaplePHP\Query\Interfaces\AttrInterface;
+use MaplePHP\Query\Interfaces\DBInterface;
 
 
 class Helpers {
@@ -54,6 +54,50 @@ class Helpers {
             return $val;
         }
         return "INNER";
+    }
+
+    /**
+     * Prepare order by
+     * @param  array $arr
+     * @return array
+     */
+    public static function getOrderBy(array $arr): array
+    {
+        $new = [];
+        foreach($arr as $row) {
+            $new[] = "{$row['column']} {$row['sort']}";
+        }
+        return $new;
+    }
+
+
+    public static function buildJoinData(DBInterface $inst, string|array $where): array
+    {
+        $data = array();
+        if (is_array($where)) {
+            foreach ($where as $key => $val) {
+                if (is_array($val)) {
+                    foreach ($val as $grpKey => $grpVal) {
+                        if(!($grpVal instanceof AttrInterface)) {
+                            $grpVal = "%s";
+                        }
+                        $inst->setWhereData($grpKey, $grpVal, $data);
+                    }
+                } else {
+                    if(!($val instanceof AttrInterface)) {
+                        $val = "%s";
+                    }
+                    $inst->setWhereData($key, $val, $data);
+                }
+            }
+        }
+
+        return $data;
+    }
+
+    function validateIdentifiers($column): bool
+    {
+        return (preg_match('/^[a-zA-Z0-9_]+$/', $column) !== false);
     }
 
     /**
@@ -166,5 +210,33 @@ class Helpers {
         return ["alias" => $alias, "table" => $table];
     }
 
+
+    /**
+     * Will add a alias to a MySQL table
+     * @param string $table
+     * @param string|null $alias
+     * @return string
+     */
+    public static function addAlias(string|AttrInterface $table, null|string|AttrInterface $alias = null, string $command = ""): string
+    {
+        if(!is_null($alias)) {
+            $table .= ($command ? " {$command} " : " ") . $alias;
+        }
+        return $table;
+    }
+
+    /**
+     * Will add a alias to a MySQL table
+     * @param string $table
+     * @param string|null $alias
+     * @return string
+     */
+    public static function toAlias(string|AttrInterface $table, null|string|AttrInterface $alias = null): string
+    {
+        if(!is_null($alias)) {
+            $table .= " AS " . $alias;
+        }
+        return $table;
+    }
 
 }

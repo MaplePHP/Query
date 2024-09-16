@@ -67,4 +67,14 @@ class MySQLConnect extends mysqli implements ConnectInterface
     {
         return $this->close();
     }
+
+    /**
+     * Prep value / SQL escape string
+     * @param string $value
+     * @return string
+     */
+    function prep(string $value): string
+    {
+        return $this->real_escape_string($value);
+    }
 }

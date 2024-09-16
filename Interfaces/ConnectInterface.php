@@ -54,4 +54,11 @@ interface ConnectInterface
      * @return bool
      */
     function close(): true;
+
+    /**
+     * Prep value / SQL escape string
+     * @param string $value
+     * @return string
+     */
+    function prep(string $value): string;
 }

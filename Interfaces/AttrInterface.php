@@ -17,13 +17,6 @@ interface AttrInterface
     public function getRaw(): string|array;
 
     /**
-     * Initiate the instance
-     * @param  string $value
-     * @return self
-     */
-    public static function value(array|string|int|float $value): self;
-
-    /**
      * Enable/disable MySQL prep
      * @param  bool   $prep
      * @return self

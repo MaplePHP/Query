@@ -126,4 +126,14 @@ class PostgreSQLConnect implements ConnectInterface
         pg_close($this->connection);
         return true;
     }
+
+    /**
+     * Prep value / SQL escape string
+     * @param string $value
+     * @return string
+     */
+    function prep(string $value): string
+    {
+        return pg_escape_string($this->connection, $value);
+    }
 }

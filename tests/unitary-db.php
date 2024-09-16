@@ -2,8 +2,12 @@
 
 use database\migrations\Test;
 use database\migrations\TestCategory;
+use MaplePHP\Query\DBTest;
+use MaplePHP\Query\Handlers\MySQLHandler;
 use MaplePHP\Query\Handlers\PostgreSQLHandler;
 use MaplePHP\Query\Handlers\SQLiteHandler;
+use MaplePHP\Query\Prepare;
+use MaplePHP\Query\Utility\Attr;
 use MaplePHP\Unitary\Unit;
 use MaplePHP\Query\Connect;
 
@@ -12,6 +16,60 @@ use MaplePHP\Query\Connect;
 if (Connect::hasInstance() && Connect::getInstance()->hasConnection()) {
 
     $unit = new Unit();
+
+    $handler = new MySQLHandler(getenv("DATABASE_HOST"), getenv("DATABASE_USERNAME"), getenv("DATABASE_PASSWORD"), "test");
+    $handler->setPrefix("maple_");
+
+    $db = new DBTest($handler);
+    $unit->addTitle("Testing MaplePHP Query library!");
+
+    $unit->add("OK", function ($inst) use ($unit, $db) {
+
+        $prepare = new Prepare();
+        for($i = 1; $i < 6; $i++) {
+
+            //
+
+           /*
+            $test = $db->table("test")
+                ->columns("id", "name")
+                ->where("id", 1);
+
+
+            $test2 = $db->table("test")
+                ->columns("id", "name")
+                ->where("id", 3)
+                ->order("id", "DESC")
+                ->limit(20);
+            */
+
+           $inst = $db->table(["test", "a"])
+                ->join(["test_category", "cat"], ["cat.tid" => "a.id"])
+                ->columns("a.id", "a.name", ['cat.name' => "test"])
+                ->where("id", $i);
+
+           $prepare->query($inst);
+
+            /*
+            print_r($inst->fetch());
+            echo "\n\n";
+            //print_r($test->sql());
+            die;
+             */
+        }
+
+        print_r($prepare->execute());
+        die;
+
+
+    });
+
+    $unit->execute();
+}
+
+
+/*
+
     $instances = [null, "postgresql", "sqlite"];
 
     $sqLiteHandler = new PostgreSQLHandler("127.0.0.1", "postgres", "", "postgres");
@@ -69,19 +127,6 @@ if (Connect::hasInstance() && Connect::getInstance()->hasConnection()) {
             $select = $db::select("cat_id AS id,name", "test_category");
 
 
-            /*
-             $select->union($union);
-
-
-
-            $arr = $select->fetch();
-
-            $inst->add(count($arr), [
-                "equal" => [16],
-            ], "Union does not seem to match");
-             */
-
-
 
             $insert = $db::insert("test")->set([
                 "name" => "Test row",
@@ -97,19 +142,6 @@ if (Connect::hasInstance() && Connect::getInstance()->hasConnection()) {
             //print_r($db->connection());
             //$insert->execute();
 
-
-
-
-
-
-
-
-
-
-
-
         });
     }
-
-    $unit->execute();
-}
+ */

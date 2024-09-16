@@ -348,19 +348,19 @@ class DB extends AbstractDB
     /**
      * Create protected MySQL WHERE input
      * Supports dynamic method name calls like: whereIdStatus(1, 0)
-     * @param string|AttrInterface $key Mysql column
-     * @param string|int|float|AttrInterface $val Equals to value
+     * @param string|AttrInterface $column Mysql column
+     * @param string|int|float|AttrInterface $value Equals to value
      * @param string|null $operator Change comparison operator from default "=".
      * @return self
      * @throws DBValidationException
      */
-    public function where(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self
+    public function where(string|AttrInterface $column, string|int|float|AttrInterface $value, ?string $operator = null): self
     {
         // Whitelist operator
         if (!is_null($operator)) {
             $this->compare = $this->operator($operator);
         }
-        $this->setWhereData($key, $val, $this->where);
+        $this->setWhereData($column, $value, $this->where);
         return $this;
     }
 
@@ -382,18 +382,18 @@ class DB extends AbstractDB
 
     /**
      * Create protected MySQL HAVING input
-     * @param string|AttrInterface $key Mysql column
-     * @param string|int|float|AttrInterface $val Equals to value
+     * @param string|AttrInterface $column Mysql column
+     * @param string|int|float|AttrInterface $value Equals to value
      * @param string|null $operator Change comparison operator from default "=".
      * @return self
      * @throws DBValidationException
      */
-    public function having(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self
+    public function having(string|AttrInterface $column, string|int|float|AttrInterface $value, ?string $operator = null): self
     {
         if (!is_null($operator)) {
             $this->compare = $this->operator($operator);
         }
-        $this->setWhereData($key, $val, $this->having);
+        $this->setWhereData($column, $value, $this->having);
         return $this;
     }
 
@@ -442,20 +442,20 @@ class DB extends AbstractDB
 
     /**
      * Set Mysql ORDER
-     * @param string|AttrInterface $col Mysql Column
+     * @param string|AttrInterface $column Mysql Column
      * @param string $sort Mysql sort type. Only "ASC" OR "DESC" is allowed, anything else will become "ASC".
      * @return self
      * @throws DBValidationException
      */
-    public function order(string|AttrInterface $col, string $sort = "ASC"): self
+    public function order(string|AttrInterface $column, string $sort = "ASC"): self
     {
-        $col = $this->prep($col, false);
+        $column = $this->prep($column, false);
 
-        if (!is_null($this->mig) && !$this->mig->columns([(string)$col])) {
+        if (!is_null($this->mig) && !$this->mig->columns([(string)$column])) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
         $sort = $this->orderSort($sort); // Whitelist
-        $this->order[] = "$col $sort";
+        $this->order[] = "$column $sort";
         return $this;
     }
 

@@ -2,48 +2,49 @@
 
 namespace MaplePHP\Query\Utility;
 
-use MaplePHP\Query\Connect;
-use MaplePHP\Query\Exceptions\ConnectException;
+use BadMethodCallException;
+use InvalidArgumentException;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\DTO\Format\Encode;
+use MaplePHP\Query\Interfaces\ConnectInterface;
+use MaplePHP\Query\Interfaces\HandlerInterface;
 
 /**
  * MAKE IMMUTABLE in future
  */
 class Attr implements AttrInterface
 {
-    private $value;
-    private $raw;
-    private $hasBeenEncoded = false;
-    private $prep = true;
-    private $enclose = true;
-    private $jsonEncode = false;
-    private $encode = false;
+    const RAW_TYPE = 0;
+    const VALUE_TYPE = 1;
+    const COLUMN_TYPE = 2;
+    const VALUE_TYPE_NUM = 3;
+    const VALUE_TYPE_STR = 4;
+
+    private ConnectInterface|HandlerInterface $connection;
+    private float|int|array|string|null $value = null;
+    private float|int|array|string $raw;
+    private array $set = [];
+    //private bool $hasBeenEncoded = false;
+
+    private int $type = 0;
+    private bool $prep = true;
+    private bool $sanitize = true;
+    private bool $enclose = true;
+    private bool $jsonEncode = false;
+    private bool $encode = false;
 
     /**
      * Initiate the instance
-     * @param float|int|array|string $value
+     * @param ConnectInterface|HandlerInterface $connection
      */
-    public function __construct(float|int|array|string $value)
+    public function __construct(ConnectInterface|HandlerInterface $connection)
     {
-        $this->value = $value;
-        $this->raw = $value;
-    }
-
-    /**
-     * Initiate the instance
-     * @param  array|string|int|float $value
-     * @return self
-     */
-    public static function value(array|string|int|float $value): self
-    {
-        return new self($value);
+        $this->connection = $connection;
     }
 
     /**
      * Process string after your choices
      * @return string
-     * @throws ConnectException
      */
     public function __toString(): string
     {
@@ -51,38 +52,163 @@ class Attr implements AttrInterface
     }
 
     /**
+     * IMMUTABLE: Set value you that want to encode against.
+     * Will also REST all values to its defaults
+     * @param float|int|array|string $value
+     * @return self
+     */
+    public function withValue(float|int|array|string $value): self
+    {
+        $inst = new self($this->connection);
+        $inst->value = $value;
+        $inst->raw = $value;
+        return $inst;
+    }
+
+    public function type(int $dataType): static
+    {
+        $inst = clone $this;
+        if($dataType < 0 || $dataType > self::VALUE_TYPE_STR) {
+            throw new InvalidArgumentException('The data type expects to be either "RAW_TYPE (0), VALUE_TYPE (1), 
+                COLUMN_TYPE (2), VALUE_TYPE_NUM (3), VALUE_TYPE_STR (4)"!');
+        }
+        $inst->type = $dataType;
+        if($dataType === self::RAW_TYPE) {
+            $inst = $inst->prep(false)->enclose(false)->encode(false)->sanitize(false);
+        }
+
+        if($dataType === self::VALUE_TYPE_NUM) {
+            $inst = $inst->enclose(false);
+            $inst->value = (float)$inst->value;
+        }
+
+        // Will not "prep" column type by default but instead it will "sanitize"
+        if($dataType === self::COLUMN_TYPE) {
+            $inst = $inst->prep(false)->sanitize(true);
+        }
+        return $inst;
+    }
+
+    public function isType(int $type): int
+    {
+        return ($this->type === $type);
+    }
+
+
+    /**
+     * IMMUTABLE: Enable/disable MySQL prep
+     * @param  bool   $prep
+     * @return static
+     */
+    public function prep(bool $prep): static
+    {
+        $inst = clone $this;
+        $inst->prep = $prep;
+        return $inst;
+    }
+
+    /**
+     * Sanitize column types
+     * @param bool $sanitize
+     * @return $this
+     */
+    public function sanitize(bool $sanitize): static
+    {
+        $inst = clone $this;
+        $inst->sanitize = $sanitize;
+        return $inst;
+    }
+
+    /**
+     * CHANGE name to RAW?
+     * IMMUTABLE: Enable/disable string enclose
+     * @param  bool   $enclose
+     * @return static
+     */
+    public function enclose(bool $enclose): static
+    {
+        $inst = clone $this;
+        $inst->enclose = $enclose;
+        return $inst;
+    }
+
+    /**
+     * IMMUTABLE: If Request[key] is array then auto convert it to json to make it database ready
+     * @param  bool $jsonEncode
+     * @return static
+     */
+    public function jsonEncode(bool $jsonEncode): static
+    {
+        $inst = clone $this;
+        $inst->jsonEncode = $jsonEncode;
+        return $inst;
+    }
+
+    /**
+     * CHANGE name to special char??
+     * IMMUTABLE: Enable/disable XSS protection
+     * @param  bool   $encode (default true)
+     * @return static
+     */
+    public function encode(bool $encode): static
+    {
+        $inst = clone $this;
+        $inst->encode = $encode;
+        return $inst;
+    }
+
+    /**
+     * CHANGE NAME TO GET??
      * Can only be encoded once
      * Will escape and encode values the right way buy the default
      * If prepped then quotes will be escaped and not encoded
      * If prepped is disabled then quotes will be encoded
      * @return string
-     * @throws ConnectException
      */
     public function getValue(): string
     {
-        if (!$this->hasBeenEncoded) {
-            $this->hasBeenEncoded = true;
-            $this->value = Encode::value($this->value)
-                ->specialChar($this->encode, ($this->prep ? ENT_NOQUOTES : ENT_QUOTES))
-                ->urlEncode(false)
-                ->encode();
 
-            // Array values will automatically be json encoded
-            if ($this->jsonEncode || is_array($this->value)) {
-                // If prep is on then escape after json_encode, 
-                // otherwise json encode will possibly escape the escaped value
-                $this->value = json_encode($this->value);
-            }
-            
-            if($this->prep) {
-                $this->value = Connect::getInstance()->prep($this->value);
-            }
-
-            if ($this->enclose) {
-                $this->value = "'$this->value'";
-            }
+        $inst = clone $this;
+        if(is_null($inst->value)) {
+            throw new BadMethodCallException("You need to set a value first with \"withValue\"");
         }
-        return $this->value;
+
+        $inst->value = Encode::value($inst->value)
+            ->specialChar($inst->encode, ($inst->prep ? ENT_NOQUOTES : ENT_QUOTES))
+            ->sanitizeIdentifiers($inst->sanitize)
+            ->urlEncode(false)
+            ->encode();
+
+        // Array values will automatically be json encoded
+        if ($inst->jsonEncode || is_array($inst->value)) {
+            // If prep is on then escape after json_encode,
+            // otherwise json encode will possibly escape the escaped value
+            $inst->value = json_encode($inst->value);
+        }
+
+        if($inst->prep) {
+            $inst->value = $inst->connection->prep($inst->value);
+        }
+
+        if ($inst->enclose) {
+            $inst->value = ($inst->type === self::COLUMN_TYPE) ? $this->getValueToColumn() : "'$inst->value'";
+        }
+
+        return $inst->value;
+    }
+
+    /**
+     * Will convert a value to a column type
+     * @return string
+     */
+    protected function getValueToColumn(): string
+    {
+        $arr = [];
+        $exp = explode('.', $this->value);
+        foreach($exp as $value) {
+            $arr[] = "`$value`";
+        }
+        return implode('.', $arr);
     }
 
     /**
@@ -92,49 +218,5 @@ class Attr implements AttrInterface
     public function getRaw(): string|array
     {
         return $this->raw;
-    }
-
-    /**
-     * Enable/disable MySQL prep
-     * @param  bool   $prep
-     * @return self
-     */
-    public function prep(bool $prep): self
-    {
-        $this->prep = $prep;
-        return $this;
-    }
-
-    /**
-     * Enable/disable string enclose
-     * @param  bool   $enclose
-     * @return self
-     */
-    public function enclose(bool $enclose): self
-    {
-        $this->enclose = $enclose;
-        return $this;
-    }
-
-    /**
-     * If Request[key] is array then auto convert it to json to make it database ready
-     * @param  bool $jsonEncode
-     * @return self
-     */
-    public function jsonEncode(bool $jsonEncode): self
-    {
-        $this->jsonEncode = $jsonEncode;
-        return $this;
-    }
-
-    /**
-     * Enable/disable XSS protection
-     * @param  bool   $encode (default true)
-     * @return self
-     */
-    public function encode(bool $encode): self
-    {
-        $this->encode = $encode;
-        return $this;
     }
 }

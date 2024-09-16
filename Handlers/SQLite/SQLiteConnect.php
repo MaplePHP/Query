@@ -101,4 +101,14 @@ class SQLiteConnect implements ConnectInterface
         return true;
     }
 
+    /**
+     * Prep value / SQL escape string
+     * @param string $value
+     * @return string
+     */
+    function prep(string $value): string
+    {
+        return SQLite3::escapeString($value);
+    }
+
 }
