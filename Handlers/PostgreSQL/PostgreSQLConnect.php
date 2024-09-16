@@ -3,27 +3,44 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers\PostgreSQL;
 
+use Exception;
 use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Exceptions\ResultException;
+use MaplePHP\Query\Interfaces\ConnectInterface;
 use PgSql\Connection;
 use PgSql\Result;
 
-class PostgreSQLConnect
+class PostgreSQLConnect implements ConnectInterface
 {
 
-    public $error;
+    public string $error = "";
 
     private Connection $connection;
     private PostgreSQLResult|Result $query;
 
+    /**
+     * @param string $server
+     * @param string $user
+     * @param string $pass
+     * @param string $dbname
+     * @param int $port
+     * @throws ConnectException
+     */
     public function __construct(string $server, string $user, string $pass, string $dbname, int $port = 5432)
     {
         if(!function_exists('pg_connect')) {
             throw new ConnectException('PostgreSQL php functions is missing and needs to be installed.', 1);
         }
-        $this->connection = pg_connect("host=$server port=$port dbname=$dbname user=$user password=$pass");
-        if (!$this->connection) {
-            $this->error = pg_last_error();
+
+        try {
+            $this->connection = pg_connect("host=$server port=$port dbname=$dbname user=$user password=$pass");
+            if (!is_null($this->connection)) {
+                $this->error = pg_last_error($this->connection);
+            }
+        } catch (Exception $e) {
+            throw new ConnectException('Failed to connect to PostgreSQL: ' . $e->getMessage(), $e->getCode(), $e);
         }
+
     }
 
     public function getConnection(): Connection
@@ -33,28 +50,29 @@ class PostgreSQLConnect
 
     /**
      * Returns Connection of PgSql\Connection
-     * @param string $name
+     * @param string $method
      * @param array $arguments
      * @return Connection|false
      */
-    public function __call(string $name, array $arguments): Connection|false
+    public function __call(string $method, array $arguments): Connection|false
     {
-        return call_user_func_array([$this->connection, $name], $arguments);
+        return call_user_func_array([$this->connection, $method], $arguments);
     }
 
     /**
      * Query sql
-     * @param $sql
+     * @param $query
+     * @param int $result_mode
      * @return PostgreSQLResult|bool
      */
-    function query($sql): PostgreSQLResult|bool
+    function query($query, int $result_mode = 0): PostgreSQLResult|bool
     {
         if($this->connection instanceof Connection) {
             $this->query = new PostgreSQLResult($this->connection);
-            if($query = $this->query->query($sql)) {
+            if($query = $this->query->query($query)) {
                 return $query;
             }
-            $this->error = pg_result_error($this->connection);
+            $this->error = pg_result_error($this->query);
         }
         return false;
     }
@@ -89,18 +107,33 @@ class PostgreSQLConnect
     /**
      * Get insert ID
      * @return mixed
+     * @throws ResultException
      */
     function insert_id(?string $column = null): int
     {
+        if(is_null($column)) {
+            throw new ResultException("PostgreSQL expects a column name for a return result.");
+        }
         return (int)pg_fetch_result($this->query, 0, $column);
     }
 
     /**
      * Close the connection
-     * @return void
+     * @return true
      */
-    function close(): void
+    function close(): true
     {
         pg_close($this->connection);
+        return true;
+    }
+
+    /**
+     * Prep value / SQL escape string
+     * @param string $value
+     * @return string
+     */
+    function prep(string $value): string
+    {
+        return pg_escape_string($this->connection, $value);
     }
 }

@@ -3,34 +3,85 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query;
 
+use Exception;
 use InvalidArgumentException;
 use MaplePHP\Query\Exceptions\ConnectException;
-use MaplePHP\Query\Interfaces\AttrInterface;
+use MaplePHP\Query\Exceptions\ResultException;
+use MaplePHP\Query\Interfaces\HandlerInterface;
+use MaplePHP\Query\Interfaces\ConnectInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;
-use MaplePHP\Query\Utility\Attr;
-use mysqli;
 
 /**
+ * Connect a singleton connection class
+ *
+ * WIll not be __callStatic in future!
  * @method static select(string $columns, string|array|MigrateInterface $table)
  * @method static table(string $string)
+ * @method static insert(string $string)
  */
-class Connect
+class Connect implements ConnectInterface
 {
-    private $handler;
+    private HandlerInterface $handler;
     private static array $inst;
     public static string $current = "default";
-    private $db;
+    private ?ConnectInterface $connection = null;
 
-    private function __construct($handler)
+    /**
+     * @param HandlerInterface $handler
+     */
+    private function __construct(HandlerInterface $handler)
     {
         $this->handler = $handler;
     }
 
     /**
-     * Prevent cloning the instance
+     * This will prevent cloning the instance
      * @return void
      */
-    private function __clone() {
+    private function __clone(): void
+    {
+    }
+
+    /**
+     * Access the database main class
+     * @param string $method
+     * @param array $arguments
+     * @return object|false
+     * @throws ConnectException
+     */
+    public function __call(string $method, array $arguments): object|false
+    {
+        if(is_null($this->connection)) {
+            throw new ConnectException("The connection has not been initialized yet.");
+        }
+        return call_user_func_array([$this->connection, $method], $arguments);
+    }
+
+    /**
+     * Get default instance or secondary instances with key
+     * @param string|null $key
+     * @return self
+     * @throws ConnectException
+     */
+    public static function getInstance(?string $key = null): self
+    {
+
+        /*
+        var_dump("WTFTTTT", $key);
+        echo "\n\n\n";
+        $beg = debug_backtrace();
+        foreach($beg as $test) {
+            var_dump(($test['file'] ?? "noFile"), ($test['line'] ?? "noLine"), ($test['class'] ?? "noClass"), ($test['function'] ?? "noFunction"));
+        }
+         */
+
+
+        $key = self::getKey($key);
+        if(!self::hasInstance($key)) {
+            throw new ConnectException("Connection Error: No active connection or connection instance found.");
+        }
+        self::$current = $key;
+        return self::$inst[$key];
     }
 
     /**
@@ -42,17 +93,17 @@ class Connect
     public static function __callStatic(string $name, array $arguments)
     {
         $inst = new DB();
-        $inst->setConnKey(self::$current);
+        $inst->setConnKey(static::$current);
         return $inst::$name(...$arguments);
     }
 
     /**
      * Set connection handler
-     * @param $handler
+     * @param HandlerInterface $handler
      * @param string|null $key
      * @return self
      */
-    public static function setHandler($handler, ?string $key = null): self
+    public static function setHandler(HandlerInterface $handler, ?string $key = null): self
     {
         $key = self::getKey($key);
         if(self::hasInstance($key)) {
@@ -82,22 +133,6 @@ class Connect
     }
 
     /**
-     * Get default instance or secondary instances with key
-     * @param string|null $key
-     * @return self
-     * @throws ConnectException
-     */
-    public static function getInstance(?string $key = null): self
-    {
-        $key = self::getKey($key);
-        if(!self::hasInstance($key)) {
-            throw new ConnectException("Connection Error: No active connection or connection instance found.");
-        }
-        self::$current = $key;
-        return self::$inst[$key];
-    }
-
-    /**
      * Check if default instance or secondary instances exist for key
      * @param string|null $key
      * @return bool
@@ -109,39 +144,44 @@ class Connect
     }
 
     /**
-     * Get the possible connection key
-     * @param string|null $key
-     * @return string
+     * Connect to database
+     * The ConnectInterface instance will be null before execute
+     * @return void
+     * @throws ConnectException
      */
-    private static function getKey(?string $key = null): string
+    public function execute(): void
     {
-        $key = (is_null($key)) ? "default" : $key;
-        return $key;
+        try {
+            $this->connection = $this->handler->execute();
+        } catch(Exception $e) {
+            throw new ConnectException($e->getMessage(), $e->getCode(), $e);
+        }
+    }
+
+    /**
+     * Get current DB connection
+     * DEPRECATED: Use connection instead!
+     */
+    public function DB(): ConnectInterface
+    {
+        return $this->connection();
+    }
+
+    /**
+     * Get current DB connection
+     */
+    public function connection(): ConnectInterface
+    {
+        return $this->connection;
     }
 
     /**
      * Access the connection handler
-     * @return mixed
+     * @return HandlerInterface
      */
-    function getHandler() {
+    function getHandler(): HandlerInterface
+    {
         return $this->handler;
-    }
-
-    /**
-     * Get database type
-     * @return string
-     */
-    public function getType(): string
-    {
-        return $this->handler->getType();
-    }
-    /**
-     * Get current table prefix
-     * @return string
-     */
-    public function getPrefix(): string
-    {
-        return $this->handler->getPrefix();
     }
 
     /**
@@ -151,33 +191,6 @@ class Connect
     public function hasConnection(): bool
     {
         return $this->handler->hasConnection();
-    }
-
-    /**
-     * Connect to database
-     * @return void
-     */
-    public function execute(): void
-    {
-        $this->db = $this->handler->execute();
-    }
-
-    /**
-     * Get current DB connection
-     */
-    public function DB(): mixed
-    {
-        return $this->db;
-    }
-
-    /**
-     * Query sql string
-     * @param  string $sql
-     * @return object|array|bool
-     */
-    public function query(string $sql): object|array|bool
-    {
-        return $this->db->query($sql);
     }
 
     /**
@@ -191,56 +204,119 @@ class Connect
     }
 
     /**
-     * Select a new database
-     * @param  string      $databaseName
-     * @param  string|null $prefix Expected table prefix (NOT database prefix)
-     * @return void
+     * Query sql string
+     * @param string $query
+     * @param int $result_mode
+     * @return object|array|bool
+     * @throws ResultException
      */
-    /*
-     public static function selectDB(string $databaseName, ?string $prefix = null): void
+    public function query(string $query, int $result_mode = 0): object|array|bool
     {
-        mysqli_select_db(static::$selectedDB, $databaseName);
-        if (!is_null($prefix)) {
-            static::setPrefix($prefix);
+        try {
+            return $this->connection->query($query);
+        } catch (Exception $e) {
+            throw new ResultException($e->getMessage(), $e->getCode(), $e);
         }
     }
-     */
 
     /**
-     * Execute multiple quries at once (e.g. from a sql file)
-     * @param  string $sql
-     * @param  object|null &$mysqli
-     * @return array
+     * Begin transaction
+     * @return bool
      */
-    public function multiQuery(string $sql, object &$mysqli = null): array
+    function begin_transaction(): bool
     {
-        return $this->handler->multiQuery($sql, $mysqli);
+        return $this->connection->begin_transaction();
     }
 
     /**
-     * Start Transaction
-     * @return mysqli
+     * Commit transaction
+     * @return bool
      */
-    public function transaction(): mixed
+    function commit(): bool
     {
-        return $this->handler->transaction();
+        return $this->connection->commit();
     }
 
     /**
-     * Profile mysql speed
+     * Rollback transaction
+     * @return bool
      */
-    public static function startProfile(): void
+    function rollback(): bool
     {
-        Connect::query("set profiling=1");
+        return $this->connection->rollback();
     }
 
     /**
+     * Returns the value generated for an AI column by the last query
+     * @param string|null $column Is only used with PostgreSQL!
+     * @return int
+     */
+    function insert_id(?string $column = null): int
+    {
+        return $this->connection->insert_id($column);
+    }
+
+    /**
+     * Close connection
+     * @return bool
+     */
+    function close(): true
+    {
+        return $this->connection->close();
+    }
+
+    /**
+     * Start Transaction will return instance of ConnectInterface instead of bool
+     * @return ConnectInterface
+     * @throws ConnectException
+     */
+    public function transaction(): ConnectInterface
+    {
+        if(!$this->begin_transaction()) {
+            $errorMsg = "Couldn't start transaction!";
+            if(!empty($this->connection->error)) {
+                $errorMsg = "The transaction error: " . $this->connection->error;
+            }
+            throw new ConnectException($errorMsg);
+        }
+        return $this->connection;
+    }
+
+    /**
+     * Get the possible connection key
+     * @param string|null $key
+     * @return string
+     */
+    private static function getKey(?string $key = null): string
+    {
+        return (is_null($key)) ? "default" : $key;
+    }
+
+    /**
+     * MOVE TO HANDLERS
+     * This method will be CHANGED soon
+     * @param string|null $key
+     * @return self
+     * @throws ConnectException|ResultException
+     */
+    public static function startProfile(?string $key = null): self
+    {
+        $inst = self::getInstance($key);
+        $inst->query("set profiling=1");
+        return $inst;
+    }
+
+    /**
+     * MOVE TO HANDLERS
+     * This method will be CHANGED soon
      * Close profile and print results
+     * Expects startProfile
+     * @throws ResultException
      */
-    public static function endProfile($html = true): string|array
+    public function endProfile($html = true): string|array
     {
         $totalDur = 0;
-        $result = Connect::query("show profiles");
+        $result = $this->query("show profiles");
 
         $output = "";
         if ($html) {
@@ -261,53 +337,5 @@ class Connect
         } else {
             return array("row" => $output, "total" => $total);
         }
-    }
-
-    /**
-    * Create Mysql variable
-    * @param string $key   Variable key
-    * @param string $value Variable value
-    */
-    public static function setVariable(string $key, string $value): AttrInterface
-    {
-        $escapedVarName = Attr::value("@{$key}")->enclose(false)->encode(false);
-        $escapedValue = (($value instanceof AttrInterface) ? $value : Attr::value($value));
-
-        self::$mysqlVars[$key] = clone $escapedValue;
-        Connect::query("SET {$escapedVarName} = {$escapedValue}");
-        return $escapedVarName;
-    }
-
-    /**
-     * Get Mysql variable
-     * @param string $key   Variable key
-     */
-    public static function getVariable(string $key): AttrInterface
-    {
-        if (!self::hasVariable($key)) {
-            throw new ConnectException("DB MySQL variable is not set.", 1);
-        }
-        return Attr::value("@{$key}")->enclose(false)->encode(false);
-    }
-
-    /**
-     * Get Mysql variable
-     * @param string $key   Variable key
-     */
-    public static function getVariableValue(string $key): string
-    {
-        if (!self::hasVariable($key)) {
-            throw new ConnectException("DB MySQL variable is not set.", 1);
-        }
-        return self::$mysqlVars[$key]->enclose(false)->encode(false);
-    }
-
-    /**
-     * Has Mysql variable
-     * @param string $key   Variable key
-     */
-    public static function hasVariable(string $key): bool
-    {
-        return (isset(self::$mysqlVars[$key]));
     }
 }

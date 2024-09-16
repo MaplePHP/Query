@@ -4,26 +4,36 @@ declare(strict_types=1);
 namespace MaplePHP\Query;
 
 use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Interfaces\ConnectInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
 
 class Query
 {
     private $sql;
+    private $prepare;
+    private ?array $bind = null;
     private ?string $pluck = null;
-    private ?Connect $connection = null;
+    private ConnectInterface $connection;
 
-    public function __construct(string|DBInterface $sql, $connection = null)
+    public function __construct(ConnectInterface $connection, string|DBInterface $sql)
     {
         $this->sql = $sql;
         if ($sql instanceof DBInterface) {
+            $this->prepare = $this->sql->__get("prepare");
             $this->sql = $sql->sql();
         }
-        $this->connection = is_null($connection) ? Connect::getInstance() : $connection;
+        $this->connection = $connection;
     }
 
     public function setPluck(?string $pluck): void
     {
         $this->pluck = $pluck;
+    }
+
+    public function bind(array $set): self
+    {
+        $this->bind = $set;
+        return $this;
     }
 
     /**
@@ -33,6 +43,21 @@ class Query
      */
     public function execute(): object|array|bool
     {
+        if(!is_null($this->bind)) {
+            $arr = [];
+            $stmt = $this->connection->prepare($this->bind[0]->sql());
+            foreach($this->bind as $dbInst) {
+                $dbInst->sql();
+                $ref = $dbInst->getQueryBuilder()->getSet();
+                $stmt->bind_param(str_pad("", count($ref), "s"), ...$ref);
+                $stmt->execute();
+                $arr[] = $stmt;
+            }
+            //$stmt->close();
+
+            return $arr;
+        }
+
         if ($result = $this->connection->query($this->sql)) {
             return $result;
         } else {

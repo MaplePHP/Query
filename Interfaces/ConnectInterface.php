@@ -16,9 +16,10 @@ interface ConnectInterface
     /**
      * Performs a query on the database
      * @param string $query
-     * @return object|false
+     * @param int $result_mode If database
+     * @return mixed
      */
-    public function query(string $query): object|bool;
+    public function query(string $query, int $result_mode = 0): mixed;
 
 
     /**
@@ -47,4 +48,17 @@ interface ConnectInterface
      * @return int
      */
     function insert_id(?string $column = null): int;
+
+    /**
+     * Close connection
+     * @return bool
+     */
+    function close(): true;
+
+    /**
+     * Prep value / SQL escape string
+     * @param string $value
+     * @return string
+     */
+    function prep(string $value): string;
 }

@@ -4,11 +4,12 @@ declare(strict_types=1);
 namespace MaplePHP\Query;
 
 use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Exceptions\DBQueryException;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
 use MaplePHP\Query\Exceptions\DBValidationException;
-use MaplePHP\Query\Exceptions\DBQueryException;
+use MaplePHP\Query\Exceptions\ResultException;
 //use MaplePHP\Query\Utility\Attr;
 use MaplePHP\Query\Utility\WhitelistMigration;
 
@@ -36,7 +37,6 @@ class DB extends AbstractDB
     private $sql;
     private $dynamic;
     private ?string $returning = null;
-    protected ?string $pluck = null;
 
     /**
      * It is a semi-dynamic method builder that expects certain types of objects to be set
@@ -44,7 +44,7 @@ class DB extends AbstractDB
      * @param array $args
      * @return self
      * @throws ConnectException
-     * @throws DBQueryException
+     * @throws ResultException
      */
     public static function __callStatic(string $method, array $args)
     {
@@ -53,8 +53,8 @@ class DB extends AbstractDB
             $table = array_pop($args);
             $inst = self::table($table);
             $inst->method = $method;
-            $inst->setConnKey(Connect::$current);
-            $prefix = Connect::getInstance(Connect::$current)->getHandler()->getPrefix();
+            //$inst->setConnKey(Connect::$current);
+            $prefix = $inst->connInst()->getHandler()->getPrefix();
 
             switch ($inst->method) {
                 case 'select':
@@ -83,6 +83,7 @@ class DB extends AbstractDB
 
         } else {
             $inst = new self();
+            //$inst->setConnKey(Connect::$current);
         }
 
         return $inst;
@@ -93,8 +94,8 @@ class DB extends AbstractDB
      * @param string $method
      * @param array $args
      * @return array|bool|DB|object
-     * @throws DBQueryException
-     * @throws DBValidationException|ConnectException
+     * @throws ResultException
+     * @throws DBValidationException|ConnectException|ResultException|Exceptions\DBQueryException
      */
     public function __call(string $method, array $args)
     {
@@ -104,7 +105,7 @@ class DB extends AbstractDB
             case "pluck": // Columns??
                 $args = ($args[0] ?? "");
                 if (str_contains($args, ",")) {
-                    throw new DBQueryException("Your only allowed to pluck one database column!");
+                    throw new ResultException("Your only allowed to pluck one database column!");
                 }
 
                 $pluck = explode(".", $args);
@@ -141,7 +142,7 @@ class DB extends AbstractDB
      * It is better to use (DB::select, DB::insert, DB::update, DB::delete)
      * @param string|array|MigrateInterface $data
      * @return self new instance
-     * @throws DBQueryException
+     * @throws ResultException
      */
     public static function table(string|array|MigrateInterface $data): self
     {
@@ -152,7 +153,7 @@ class DB extends AbstractDB
         }
 
         $inst = new self();
-        $data = $inst->sperateAlias($data);
+        $data = $inst->separateAlias($data);
         $inst->alias = $data['alias'];
         $inst->table = $inst->getAttr($data['table'])->enclose(false);
         $inst->mig = $mig;
@@ -190,7 +191,7 @@ class DB extends AbstractDB
      * Build SELECT sql code (The method will be auto called in method build)
      * @method static __callStatic
      * @return self
-     * @throws DBValidationException
+     * @throws DBValidationException|ConnectException
      */
     protected function select(): self
     {
@@ -209,6 +210,7 @@ class DB extends AbstractDB
      * Select view
      * @return self
      * @throws DBValidationException
+     * @throws ConnectException
      */
     protected function selectView(): self
     {
@@ -218,6 +220,7 @@ class DB extends AbstractDB
     /**
      * Build INSERT sql code (The method will be auto called in method build)
      * @return self
+     * @throws ConnectException
      */
     protected function insert(): self
     {
@@ -229,6 +232,7 @@ class DB extends AbstractDB
     /**
      * Build UPDATE sql code (The method will be auto called in method build)
      * @return self
+     * @throws ConnectException
      */
     protected function update(): self
     {
@@ -244,6 +248,7 @@ class DB extends AbstractDB
     /**
      * Build DELETE sql code (The method will be auto called in method build)
      * @return self
+     * @throws ConnectException
      */
     protected function delete(): self
     {
@@ -256,48 +261,6 @@ class DB extends AbstractDB
         $limit = $this->buildLimit();
 
         $this->sql = "{$this->explain}DELETE$linkedTables FROM " . $this->getTable() . "$join$where$limit";
-        return $this;
-    }
-
-    /**
-     * Build CREATE VIEW sql code (The method will be auto called in method build)
-     * @return self
-     */
-    protected function createView(): self
-    {
-        //$this->select();
-        $this->sql = "CREATE VIEW " . $this->viewName . " AS $this->sql";
-        return $this;
-    }
-
-    /**
-     * Build CREATE OR REPLACE VIEW sql code (The method will be auto called in method build)
-     * @return self
-     */
-    protected function replaceView(): self
-    {
-        //$this->select();
-        $this->sql = "CREATE OR REPLACE VIEW " . $this->viewName . " AS $this->sql";
-        return $this;
-    }
-
-    /**
-     * Build DROP VIEW sql code (The method will be auto called in method build)
-     * @return self
-     */
-    protected function dropView(): self
-    {
-        $this->sql = "DROP VIEW " . $this->viewName;
-        return $this;
-    }
-
-    /**
-     * Build DROP VIEW sql code (The method will be auto called in method build)
-     * @return self
-     */
-    protected function showView(): self
-    {
-        $this->sql = "SHOW CREATE VIEW " . $this->viewName;
         return $this;
     }
 
@@ -385,19 +348,19 @@ class DB extends AbstractDB
     /**
      * Create protected MySQL WHERE input
      * Supports dynamic method name calls like: whereIdStatus(1, 0)
-     * @param string|AttrInterface $key Mysql column
-     * @param string|int|float|AttrInterface $val Equals to value
+     * @param string|AttrInterface $column Mysql column
+     * @param string|int|float|AttrInterface $value Equals to value
      * @param string|null $operator Change comparison operator from default "=".
      * @return self
      * @throws DBValidationException
      */
-    public function where(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self
+    public function where(string|AttrInterface $column, string|int|float|AttrInterface $value, ?string $operator = null): self
     {
         // Whitelist operator
         if (!is_null($operator)) {
             $this->compare = $this->operator($operator);
         }
-        $this->setWhereData($key, $val, $this->where);
+        $this->setWhereData($column, $value, $this->where);
         return $this;
     }
 
@@ -419,18 +382,18 @@ class DB extends AbstractDB
 
     /**
      * Create protected MySQL HAVING input
-     * @param string|AttrInterface $key Mysql column
-     * @param string|int|float|AttrInterface $val Equals to value
+     * @param string|AttrInterface $column Mysql column
+     * @param string|int|float|AttrInterface $value Equals to value
      * @param string|null $operator Change comparison operator from default "=".
      * @return self
      * @throws DBValidationException
      */
-    public function having(string|AttrInterface $key, string|int|float|AttrInterface $val, ?string $operator = null): self
+    public function having(string|AttrInterface $column, string|int|float|AttrInterface $value, ?string $operator = null): self
     {
         if (!is_null($operator)) {
             $this->compare = $this->operator($operator);
         }
-        $this->setWhereData($key, $val, $this->having);
+        $this->setWhereData($column, $value, $this->having);
         return $this;
     }
 
@@ -479,20 +442,20 @@ class DB extends AbstractDB
 
     /**
      * Set Mysql ORDER
-     * @param string|AttrInterface $col Mysql Column
+     * @param string|AttrInterface $column Mysql Column
      * @param string $sort Mysql sort type. Only "ASC" OR "DESC" is allowed, anything else will become "ASC".
      * @return self
      * @throws DBValidationException
      */
-    public function order(string|AttrInterface $col, string $sort = "ASC"): self
+    public function order(string|AttrInterface $column, string $sort = "ASC"): self
     {
-        $col = $this->prep($col, false);
+        $column = $this->prep($column, false);
 
-        if (!is_null($this->mig) && !$this->mig->columns([(string)$col])) {
+        if (!is_null($this->mig) && !$this->mig->columns([(string)$column])) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
         $sort = $this->orderSort($sort); // Whitelist
-        $this->order[] = "$col $sort";
+        $this->order[] = "$column $sort";
         return $this;
     }
 
@@ -546,7 +509,7 @@ class DB extends AbstractDB
      * @param string $type Type of join
      * @return self
      * @throws ConnectException
-     * @throws DBQueryException
+     * @throws ResultException
      * @throws DBValidationException
      */
     public function join(
@@ -559,11 +522,11 @@ class DB extends AbstractDB
             $this->join = array_merge($this->join, $this->buildJoinFromMig($table, $type));
         } else {
             if (is_null($where)) {
-                throw new DBQueryException("You need to specify the argument 2 (where) value!", 1);
+                throw new ResultException("You need to specify the argument 2 (where) value!", 1);
             }
 
             $prefix = $this->connInst()->getHandler()->getPrefix();
-            $arr = $this->sperateAlias($table);
+            $arr = $this->separateAlias($table);
             $table = (string)$this->prep($arr['table'], false);
             $alias = (!is_null($arr['alias'])) ? " {$arr['alias']}" : " $table";
 
@@ -606,7 +569,8 @@ class DB extends AbstractDB
     }
 
     /**
-     * Explain the mysql query. Will tell you how you can make improvements
+     * Explain the query. Will tell you how you can make improvements
+     * All database handlers is supported e.g. mysql, postgresql, sqlite...
      * @return self
      */
     public function explain(): self
@@ -617,6 +581,7 @@ class DB extends AbstractDB
 
     /**
      * Disable mysql query cache
+     * All database handlers is supported e.g. mysql, postgresql, sqlite...
      * @return self
      */
     public function noCache(): self
@@ -627,6 +592,7 @@ class DB extends AbstractDB
 
     /**
      * DEPRECATE: Calculate rows in query
+     * All database handlers is supported e.g. mysql, postgresql, sqlite...
      * @return self
      */
     public function calcRows(): self
@@ -753,6 +719,7 @@ class DB extends AbstractDB
      * Will build a returning value that can be fetched with insert id
      * This is a PostgreSQL specific function.
      * @return string
+     * @throws ConnectException
      */
     private function buildReturning(): string
     {
@@ -792,6 +759,7 @@ class DB extends AbstractDB
                 $out .= (($index > 0) ? " $firstAnd" : "") . " (";
                 $out .= $this->whereArrToStr($array);
                 $out .= ")";
+
                 $index++;
             }
         }
@@ -822,15 +790,18 @@ class DB extends AbstractDB
 
     /**
      * Used to call method that builds SQL queries
-     * @throws DBQueryException|DBValidationException
+     * @throws ResultException|DBValidationException|ConnectException
      */
     final protected function build(): void
     {
+
         if (!is_null($this->method) && method_exists($this, $this->method)) {
+
+
             $inst = (!is_null($this->dynamic)) ? call_user_func_array($this->dynamic[0], $this->dynamic[1]) : $this->{$this->method}();
 
             if (is_null($inst->sql)) {
-                throw new DBQueryException("The Method 1 \"$inst->method\" expect to return a sql " .
+                throw new ResultException("The Method 1 \"$inst->method\" expect to return a sql " .
                     "building method (like return @select() or @insert()).", 1);
             }
         } else {
@@ -841,7 +812,7 @@ class DB extends AbstractDB
     /**
      * Generate SQL string of current instance/query
      * @return string
-     * @throws DBQueryException|DBValidationException
+     * @throws ConnectException|DBValidationException|DBQueryException|ResultException
      */
     public function sql(): string
     {
@@ -851,20 +822,62 @@ class DB extends AbstractDB
 
     /**
      * Get insert AI ID from prev inserted result
+     * @param string|null $column
      * @return int|string
-     * @throws ConnectException|DBQueryException
+     * @throws ConnectException
      */
-    public function insertID(): int|string
+    public function insertId(?string $column = null): int|string
     {
-        if($this->connInst()->getHandler()->getType() === "postgresql") {
-            if(is_null($this->returning)) {
-                throw new DBQueryException("You need to specify the returning column when using PostgreSQL.");
-            }
-            return $this->connInst()->DB()->insert_id($this->returning);
+        $column = !is_null($column) ? $column : $this->returning;
+        if(!is_null($column)) {
+            return $this->connInst()->DB()->insert_id($column);
         }
-        if($this->connInst()->getHandler()->getType() === "sqlite") {
-            return $this->connInst()->DB()->lastInsertRowID();
-        }
-        return $this->connInst()->DB()->insert_id;
+        return $this->connInst()->DB()->insert_id();
+    }
+
+    /**
+     * DEPRECATED??
+     */
+
+    /**
+     * Build CREATE VIEW sql code (The method will be auto called in method build)
+     * @return self
+     */
+    protected function createView(): self
+    {
+        //$this->select();
+        $this->sql = "CREATE VIEW " . $this->viewName . " AS $this->sql";
+        return $this;
+    }
+
+    /**
+     * Build CREATE OR REPLACE VIEW sql code (The method will be auto called in method build)
+     * @return self
+     */
+    protected function replaceView(): self
+    {
+        //$this->select();
+        $this->sql = "CREATE OR REPLACE VIEW " . $this->viewName . " AS $this->sql";
+        return $this;
+    }
+
+    /**
+     * Build DROP VIEW sql code (The method will be auto called in method build)
+     * @return self
+     */
+    protected function dropView(): self
+    {
+        $this->sql = "DROP VIEW " . $this->viewName;
+        return $this;
+    }
+
+    /**
+     * Build DROP VIEW sql code (The method will be auto called in method build)
+     * @return self
+     */
+    protected function showView(): self
+    {
+        $this->sql = "SHOW CREATE VIEW " . $this->viewName;
+        return $this;
     }
 }

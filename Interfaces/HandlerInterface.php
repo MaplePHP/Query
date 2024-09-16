@@ -36,10 +36,10 @@ interface HandlerInterface
 
     /**
      * Connect to database
-     * @return mixed
+     * @return ConnectInterface
      * @throws ConnectException
      */
-    public function execute(): mixed;
+    public function execute(): ConnectInterface;
 
 
     /**

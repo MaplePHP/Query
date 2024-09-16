@@ -6,26 +6,26 @@ use Exception;
 use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\ConnectInterface;
 use SQLite3;
-use SQLite3Result;
 
 class SQLiteConnect implements ConnectInterface
 {
 
-    public string|int $insert_id;
-    public string $error;
+    public string $error = "";
 
     private SQLiteResult $query;
     private SQLite3 $connection;
 
+    /**
+     * @throws ConnectException
+     */
     public function __construct(string $database)
     {
         try {
             $this->connection = new SQLite3($database);
 
         } catch (Exception $e) {
-            throw new ConnectException('Failed to connect to SQLite: ' . $e->getMessage(), 1);
+            throw new ConnectException('Failed to connect to SQLite: ' . $e->getMessage(), $e->getCode(), $e);
         }
-        return $this->connection;
     }
 
     /**
@@ -42,17 +42,16 @@ class SQLiteConnect implements ConnectInterface
     /**
      * Performs a query on the database
      * @param string $query
+     * @param int $result_mode
      * @return object|false
      */
-    public function query(string $query): SQLiteResult|false
+    public function query(string $query, int $result_mode = 0): SQLiteResult|false
     {
         $result = new SQLiteResult($this->connection);
         if($this->query = $result->query($query)) {
             return $this->query;
         }
         $this->error = $this->connection->lastErrorMsg();
-
-        //$this->query = parent::query($query);
         return false;
     }
 
@@ -91,6 +90,25 @@ class SQLiteConnect implements ConnectInterface
     function insert_id(?string $column = null): int
     {
         return $this->connection->lastInsertRowID();
+    }
+
+    /**
+     * Close connection
+     * @return bool
+     */
+    function close(): true
+    {
+        return true;
+    }
+
+    /**
+     * Prep value / SQL escape string
+     * @param string $value
+     * @return string
+     */
+    function prep(string $value): string
+    {
+        return SQLite3::escapeString($value);
     }
 
 }
