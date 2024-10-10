@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query;
@@ -236,7 +237,7 @@ abstract class AbstractDB implements DBInterface
     final protected function setWhereData(string|AttrInterface $key, string|int|float|AttrInterface $val, ?array &$data): void
     {
         if (is_null($data)) {
-            $data = array();
+            $data = [];
         }
         $key = (string)$this->prep($key, false);
         $val = $this->prep($val);
@@ -278,7 +279,7 @@ abstract class AbstractDB implements DBInterface
                         $out .= "$col {$row['operator']} {$row['value']} ";
                         $count++;
                     }
-                    
+
                 } else {
                     $out .= ($count) > 0 ? "$key $a " : $a;
                     $count++;
@@ -287,7 +288,7 @@ abstract class AbstractDB implements DBInterface
         }
         return $out;
     }
-    
+
     /**
      * Get the Main FK data protocol
      * @return array
@@ -295,7 +296,7 @@ abstract class AbstractDB implements DBInterface
     final protected function getMainFKData(): array
     {
         if (is_null($this->fkData)) {
-            $this->fkData = array();
+            $this->fkData = [];
             foreach ($this->mig->getMig()->getData() as $col => $row) {
                 if (isset($row['fk'])) {
                     foreach ($row['fk'] as $a) {
@@ -331,7 +332,7 @@ abstract class AbstractDB implements DBInterface
      */
     final protected function prepArr(array $arr, bool $enclose = true): array
     {
-        $new = array();
+        $new = [];
         foreach ($arr as $pKey => $pVal) {
             $key = (string)$this->prep($pKey, false);
             $new[$key] = (string)$this->prep($pVal, $enclose);
@@ -345,7 +346,7 @@ abstract class AbstractDB implements DBInterface
      * @param  array     $arr     Mysql prep values
      * @return string
      */
-    final protected function sprint(string $str, array $arr = array()): string
+    final protected function sprint(string $str, array $arr = []): string
     {
         return vsprintf($str, $this->prepArr($arr, false));
     }
@@ -386,7 +387,7 @@ abstract class AbstractDB implements DBInterface
      */
     final protected function buildJoinFromMig(MigrateInterface $mig, string $type): array
     {
-        $joinArr = array();
+        $joinArr = [];
         $prefix = $this->connInst()->getHandler()->getPrefix();
         $main = $this->getMainFKData();
         $data = $mig->getData();

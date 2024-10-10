@@ -13,59 +13,31 @@ use MaplePHP\Query\Connect;
 
 
 // Only validate if there is a connection open!
-if (Connect::hasInstance() && Connect::getInstance()->hasConnection()) {
+//if (Connect::hasInstance() && Connect::getInstance()->hasConnection()) {
 
     $unit = new Unit();
-
     $handler = new MySQLHandler(getenv("DATABASE_HOST"), getenv("DATABASE_USERNAME"), getenv("DATABASE_PASSWORD"), "test");
     $handler->setPrefix("maple_");
-
     $db = new DBTest($handler);
-    $unit->addTitle("Testing MaplePHP Query library!");
-
-    $unit->add("OK", function ($inst) use ($unit, $db) {
-
-        $prepare = new Prepare();
-        for($i = 1; $i < 6; $i++) {
-
-            //
-
-           /*
-            $test = $db->table("test")
-                ->columns("id", "name")
-                ->where("id", 1);
 
 
-            $test2 = $db->table("test")
-                ->columns("id", "name")
-                ->where("id", 3)
-                ->order("id", "DESC")
-                ->limit(20);
-            */
 
-           $inst = $db->table(["test", "a"])
-                ->join(["test_category", "cat"], ["cat.tid" => "a.id"])
-                ->columns("a.id", "a.name", ['cat.name' => "test"])
-                ->where("id", $i);
 
-           $prepare->query($inst);
 
-            /*
-            print_r($inst->fetch());
-            echo "\n\n";
-            //print_r($test->sql());
-            die;
-             */
-        }
+    $unit->case("OK", function () use ($unit) {
 
-        print_r($prepare->execute());
-        die;
+        $this->add("Test", [
+            "isString" => [],
+            "length" => [1, 200]
+        ]);
 
+        $this->add("Testwqd", [
+            "length" => [1, 200]
+        ], "Test data type");
 
     });
 
-    $unit->execute();
-}
+//}
 
 
 /*

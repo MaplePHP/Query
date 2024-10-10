@@ -74,7 +74,7 @@ class Create
 {
     private $sql;
     private $add;
-    private $addArr = array();
+    private $addArr = [];
     private $prefix;
     private $type;
     private $args;
@@ -88,15 +88,15 @@ class Create
     private $tbKeys;
     private $tbKeysType;
     //private $columnData;
-    private $keys = array();
-    private $ai = array();
-    private $fk = array();
-    private $fkList = array();
-    private $colData = array();
-    private $rename = array();
-    private $hasRename = array();
-    private $renameTable = array();
-    private $primaryKeys = array();
+    private $keys = [];
+    private $ai = [];
+    private $fk = [];
+    private $fkList = [];
+    private $colData = [];
+    private $rename = [];
+    private $hasRename = [];
+    private $renameTable = [];
+    private $primaryKeys = [];
     private $dropPrimaryKeys = false;
 
     private $build;
@@ -249,7 +249,7 @@ class Create
     {
         if (isset($this->args['generated'])) {
             $value = explode(",", $this->args['generated']['columns']);
-            $colArr = array();
+            $colArr = [];
             if (isset($this->args['generated']['json_columns'])) {
                 foreach ($value as $col) {
                     preg_match('#\{{(.*?)\}}#', $col, $match);
@@ -293,8 +293,8 @@ class Create
      */
     private function adding()
     {
-        $arr = array();
-        $methodArr = array("type", "generated", "attributes", "collation", "null", "default");
+        $arr = [];
+        $methodArr = ["type", "generated", "attributes", "collation", "null", "default"];
         foreach ($methodArr as $method) {
             if ($val = $this->{$method}()) {
                 $arr[] = $val;
@@ -548,7 +548,7 @@ class Create
 
     public function mysqlCleanArr(array $arr)
     {
-        $new = array();
+        $new = [];
         foreach ($arr as $a) {
             $new[] = Connect::getInstance()->prep($a);
         }
@@ -562,7 +562,7 @@ class Create
     private function tbKeys(): array
     {
         if (is_null($this->tbKeys)) {
-            $this->tbKeysType = $this->tbKeys = array();
+            $this->tbKeysType = $this->tbKeys = [];
             if ($this->tableExists($this->table)) {
                 $result = Connect::getInstance()->query("SHOW INDEXES FROM {$this->table}");
                 if (is_object($result) && $result->num_rows > 0) {
@@ -818,7 +818,7 @@ class Create
         $prepareDrop = $this->tbKeysType();
 
         if (count($this->keys) > 0) {
-            $sqlKeyArr = array();
+            $sqlKeyArr = [];
             foreach ($this->keys as $col => $key) {
                 $col = Connect::getInstance()->prep($col);
                 $key = strtoupper(Connect::getInstance()->prep($key));
@@ -919,7 +919,7 @@ class Create
             "INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '{$dbName}' AND " .
             "TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
 
-        $arr = array();
+        $arr = [];
         if (is_object($result) && $result->num_rows > 0) {
             while ($row = $result->fetch_object()) {
                 $arr[$row->CONSTRAINT_NAME] = $row;

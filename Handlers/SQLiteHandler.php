@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers;
@@ -79,7 +80,7 @@ class SQLiteHandler implements HandlerInterface
     {
         try {
             $this->connection = new SQLiteConnect($this->database);
-            
+
         } catch (Exception $e) {
             throw new ConnectException('Failed to connect to SQLite: ' . $e->getMessage(), $e->getCode(), $e);
         }
@@ -150,7 +151,7 @@ class SQLiteHandler implements HandlerInterface
     public function multiQuery(string $sql, object &$db = null): array
     {
         $count = 0;
-        $err = array();
+        $err = [];
         $queries = explode(";", $sql);
         $db = $this->connection;
         foreach ($queries as $query) {

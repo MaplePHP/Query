@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers;
@@ -159,7 +160,7 @@ class PostgreSQLHandler implements HandlerInterface
     public function multiQuery(string $sql, object &$db = null): array
     {
         $count = 0;
-        $err = array();
+        $err = [];
         $db = $this->connection->getConnection();
         // Split the SQL string into individual queries
         $queries = explode(';', $sql);

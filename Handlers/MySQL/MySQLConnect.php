@@ -7,6 +7,7 @@ use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\ConnectInterface;
 use mysqli;
 use mysqli_result;
+use mysqli_stmt;
 
 class MySQLConnect extends mysqli implements ConnectInterface
 {
@@ -18,9 +19,11 @@ class MySQLConnect extends mysqli implements ConnectInterface
      */
     public function __construct(...$args)
     {
+
         try {
             parent::__construct(...$args);
         } catch (Exception $e) {
+            // Make sure ConnectException will be called by exception chaining to it.
             // Make errors consistent through all the handlers
             throw new ConnectException('Failed to connect to MySQL: ' . $e->getMessage(), $e->getCode(), $e);
         }
@@ -44,9 +47,20 @@ class MySQLConnect extends mysqli implements ConnectInterface
      * @param int $result_mode
      * @return mysqli_result|bool
      */
-    function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
+    public function query(string $query, int $result_mode = MYSQLI_STORE_RESULT): mysqli_result|bool
     {
         return parent::query($query, $result_mode);
+    }
+
+    /**
+     * Performs a query on the database
+     * https://www.php.net/manual/en/mysqli.query.php
+     * @param string $query
+     * @return mysqli_result|bool
+     */
+    public function prepare(string $query): mysqli_stmt|false
+    {
+        return parent::prepare($query);
     }
 
     /**
@@ -54,7 +68,7 @@ class MySQLConnect extends mysqli implements ConnectInterface
      * @param string|null $column Is only used with PostgreSQL!
      * @return int
      */
-    function insert_id(?string $column = null):int
+    public function insert_id(?string $column = null): int
     {
         return $this->insert_id;
     }
@@ -63,7 +77,7 @@ class MySQLConnect extends mysqli implements ConnectInterface
      * Close connection
      * @return bool
      */
-    function close(): true
+    public function close(): true
     {
         return $this->close();
     }
@@ -73,7 +87,7 @@ class MySQLConnect extends mysqli implements ConnectInterface
      * @param string $value
      * @return string
      */
-    function prep(string $value): string
+    public function prep(string $value): string
     {
         return $this->real_escape_string($value);
     }

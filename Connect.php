@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query;
@@ -65,17 +66,6 @@ class Connect implements ConnectInterface
      */
     public static function getInstance(?string $key = null): self
     {
-
-        /*
-        var_dump("WTFTTTT", $key);
-        echo "\n\n\n";
-        $beg = debug_backtrace();
-        foreach($beg as $test) {
-            var_dump(($test['file'] ?? "noFile"), ($test['line'] ?? "noLine"), ($test['class'] ?? "noClass"), ($test['function'] ?? "noFunction"));
-        }
-         */
-
-
         $key = self::getKey($key);
         if(!self::hasInstance($key)) {
             throw new ConnectException("Connection Error: No active connection or connection instance found.");
@@ -179,7 +169,7 @@ class Connect implements ConnectInterface
      * Access the connection handler
      * @return HandlerInterface
      */
-    function getHandler(): HandlerInterface
+    public function getHandler(): HandlerInterface
     {
         return $this->handler;
     }
@@ -223,7 +213,7 @@ class Connect implements ConnectInterface
      * Begin transaction
      * @return bool
      */
-    function begin_transaction(): bool
+    public function begin_transaction(): bool
     {
         return $this->connection->begin_transaction();
     }
@@ -232,7 +222,7 @@ class Connect implements ConnectInterface
      * Commit transaction
      * @return bool
      */
-    function commit(): bool
+    public function commit(): bool
     {
         return $this->connection->commit();
     }
@@ -241,7 +231,7 @@ class Connect implements ConnectInterface
      * Rollback transaction
      * @return bool
      */
-    function rollback(): bool
+    public function rollback(): bool
     {
         return $this->connection->rollback();
     }
@@ -251,7 +241,7 @@ class Connect implements ConnectInterface
      * @param string|null $column Is only used with PostgreSQL!
      * @return int
      */
-    function insert_id(?string $column = null): int
+    public function insert_id(?string $column = null): int
     {
         return $this->connection->insert_id($column);
     }
@@ -260,7 +250,7 @@ class Connect implements ConnectInterface
      * Close connection
      * @return bool
      */
-    function close(): true
+    public function close(): true
     {
         return $this->connection->close();
     }
@@ -323,10 +313,12 @@ class Connect implements ConnectInterface
             $output .= "<p style=\"color: red;\">";
         }
 
-        if (is_object($result)) while ($row = $result->fetch_object()) {
-            $dur = round($row->Duration, 4) * 1000;
-            $totalDur += $dur;
-            $output .= $row->Query_ID . ' - <strong>' . $dur . ' ms</strong> - ' . $row->Query . "<br>\n";
+        if (is_object($result)) {
+            while ($row = $result->fetch_object()) {
+                $dur = round($row->Duration, 4) * 1000;
+                $totalDur += $dur;
+                $output .= $row->Query_ID . ' - <strong>' . $dur . ' ms</strong> - ' . $row->Query . "<br>\n";
+            }
         }
         $total = round($totalDur, 4);
 
@@ -335,7 +327,7 @@ class Connect implements ConnectInterface
             $output .= "</p>";
             return $output;
         } else {
-            return array("row" => $output, "total" => $total);
+            return ["row" => $output, "total" => $total];
         }
     }
 }

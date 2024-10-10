@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query;
@@ -9,6 +10,7 @@ use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Exceptions\DBValidationException;
 use MaplePHP\Query\Interfaces\DBInterface;
 use MaplePHP\Query\Interfaces\HandlerInterface;
+use MaplePHP\Query\Interfaces\QueryBuilderInterface;
 use MaplePHP\Query\Utility\Attr;
 use MaplePHP\Query\Utility\Helpers;
 use MaplePHP\Query\Exceptions\ResultException;
@@ -22,40 +24,39 @@ use MaplePHP\Query\Utility\WhitelistMigration;
  */
 class DBTest implements DBInterface
 {
-
     private HandlerInterface $handler;
     private ConnectInterface $connection;
     private ?WhitelistMigration $migration = null;
     private AttrInterface $attr;
-    private ?QueryBuilder $builder = null;
+    private ?QueryBuilderInterface $builder = null;
 
     protected string $prefix;
-    protected string|AttrInterface $table;
-    protected ?AttrInterface $alias = null;
-    protected ?string $pluck = null;
-    protected ?array $columns = null;
-    protected bool $distinct = false;
-    protected ?array $order = null;
     protected string $compare = "=";
     protected bool $whereNot = false;
     protected string $whereAnd = "AND";
     protected int $whereIndex = 0;
-    protected ?array $where = null;
-    protected ?array $having = null;
-    protected null|int|AttrInterface $limit = null;
-    protected ?int $offset = null;
-    protected ?array $group = null;
+    protected ?string $pluck = null;
     protected string $returning = "";
-    protected array $join = [];
     protected array $set = [];
     protected $sql;
-    protected bool $prepare = false;
-
-    protected bool $explain = false;
-    protected bool $noCache = false;
     protected bool $calRows = false;
+    private object|array|bool|null $result = null;
 
-    protected ?array $union = null;
+    public string|AttrInterface $table;
+    public ?AttrInterface $alias = null;
+    public ?array $columns = null;
+    public bool $distinct = false;
+    public ?array $order = null;
+    public ?array $where = null;
+    public ?array $having = null;
+    public ?AttrInterface $limit = null;
+    public ?AttrInterface $offset = null;
+    public ?array $group = null;
+    public array $join = [];
+    public bool $prepare = false;
+    public bool $explain = false;
+    public bool $noCache = false;
+    public ?array $union = null;
 
     /**
      * @throws ConnectException
@@ -66,6 +67,11 @@ class DBTest implements DBInterface
         $this->connection = $handler->execute();
         $this->prefix = $handler->getPrefix();
         $this->attr = new Attr($this->connection);
+    }
+
+    public function getConnection()
+    {
+        return $this->connection;
     }
 
     public function __toString(): string
@@ -185,12 +191,13 @@ class DBTest implements DBInterface
 
     /**
      * When SQL query has been triggered then the QueryBuilder should exist
-     * @return QueryBuilder
+     * @return QueryBuilderInterface
      */
-    public function getQueryBuilder(): QueryBuilder
+    public function getQueryBuilder(): QueryBuilderInterface
     {
         if(is_null($this->builder)) {
-            throw new BadMethodCallException("The query builder can only be called after query has been built.");
+            $this->sql();
+            //throw new BadMethodCallException("The query builder can only be called after query has been built.");
         }
         return $this->builder;
     }
@@ -198,7 +205,7 @@ class DBTest implements DBInterface
     /**
      * Select protected mysql columns
      *
-     * @param string|AttrInterface ...$columns
+     * @param string|array|AttrInterface ...$columns
      * @return self
      */
     public function columns(string|array|AttrInterface ...$columns): self
@@ -311,7 +318,7 @@ class DBTest implements DBInterface
         if (!is_null($operator)) {
             $inst->compare = Helpers::operator($operator);
         }
-            $this->setWhereData($value, $column, $inst->having);
+        $this->setWhereData($value, $column, $inst->having);
         return $inst;
     }
 
@@ -340,9 +347,9 @@ class DBTest implements DBInterface
 
     /**
      * Add a limit and maybe an offset
-     * @param  int      $limit
-     * @param  int|null $offset
-     * @return self
+     * @param int|AttrInterface $limit
+     * @param int|AttrInterface|null $offset
+     * @return $this
      */
     public function limit(int|AttrInterface $limit, null|int|AttrInterface $offset = null): self
     {
@@ -356,8 +363,8 @@ class DBTest implements DBInterface
 
     /**
      * Add an offset (if limit is not set then it will automatically become "1").
-     * @param  int    $offset
-     * @return self
+     * @param int|AttrInterface $offset
+     * @return $this
      */
     public function offset(int|AttrInterface $offset): self
     {
@@ -418,7 +425,7 @@ class DBTest implements DBInterface
     public function join(
         string|array|MigrateInterface $table,
         string|array $where = null,
-        array $sprint = array(),
+        array $sprint = [],
         string $type = "INNER"
     ): self {
 
@@ -439,7 +446,7 @@ class DBTest implements DBInterface
             $tableInst->alias = null;
             $tableInst = $tableInst->table($table);
 
-            $data = array();
+            $data = [];
             if (is_array($where)) {
                 foreach ($where as $key => $val) {
                     if (is_array($val)) {
@@ -478,7 +485,7 @@ class DBTest implements DBInterface
         $inst = clone $this;
 
 
-         if(!is_null($inst->order)) {
+        if(!is_null($inst->order)) {
             throw new \RuntimeException("You need to move your ORDER BY to the last UNION statement!");
         }
 
@@ -496,8 +503,8 @@ class DBTest implements DBInterface
     public function prepare(): self
     {
         $inst = clone $this;
-        $inst->prepare = true;
-        return $inst;
+        $this->prepare = true;
+        return $this;
     }
 
 
@@ -505,16 +512,7 @@ class DBTest implements DBInterface
     {
         $this->builder = new QueryBuilder($this);
         $sql = $this->builder->sql();
-
         return $sql;
-    }
-
-    public function execute()
-    {
-        $sql = $this->sql();
-        echo $sql;
-        die();
-
     }
 
     /**
@@ -526,7 +524,7 @@ class DBTest implements DBInterface
     final protected function setWhereData(string|int|float|AttrInterface $val, string|AttrInterface $key, ?array &$data): void
     {
         if (is_null($data)) {
-            $data = array();
+            $data = [];
         }
         /*
         $key = (string)$this->prep($key, false);
@@ -577,6 +575,7 @@ class DBTest implements DBInterface
         $this->compare = "=";
     }
 
+
     /**
      * Query result
      * @param string|self $sql
@@ -585,7 +584,7 @@ class DBTest implements DBInterface
      * @return array|object|bool|string
      * @throws ResultException
      */
-    final protected function query(string|self $sql, ?string $method = null, array $args = []): array|object|bool|string
+    final public function query(string|self $sql, ?string $method = null, array $args = []): array|object|bool|string
     {
         $query = new Query($this->connection, $sql);
         $query->setPluck($this->pluck);
@@ -596,6 +595,19 @@ class DBTest implements DBInterface
             throw new ResultException("Method \"$method\" does not exists!", 1);
         }
         return $query;
+    }
+
+    /**
+     * Execute
+     * @return mixed
+     * @throws ResultException
+     */
+    function execute()
+    {
+        if(is_null($this->result)) {
+            $this->result = $this->query($this->sql())->execute();
+        }
+        return $this->result;
     }
 
 
@@ -612,7 +624,7 @@ class DBTest implements DBInterface
      */
     final protected function buildJoinFromMig(MigrateInterface $mig, string $type): array
     {
-        $joinArr = array();
+        $joinArr = [];
         $prefix = $this->connInst()->getHandler()->getPrefix();
         $main = $this->getMainFKData();
         $data = $mig->getData();
@@ -648,7 +660,7 @@ class DBTest implements DBInterface
     final protected function getMainFKData(): array
     {
         if (is_null($this->fkData)) {
-            $this->fkData = array();
+            $this->fkData = [];
             foreach ($this->mig->getMig()->getData() as $col => $row) {
                 if (isset($row['fk'])) {
                     foreach ($row['fk'] as $a) {

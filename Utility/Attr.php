@@ -4,26 +4,27 @@ namespace MaplePHP\Query\Utility;
 
 use BadMethodCallException;
 use InvalidArgumentException;
+use MaplePHP\Query\Handlers\PostgreSQL\PostgreSQLConnect;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\DTO\Format\Encode;
 use MaplePHP\Query\Interfaces\ConnectInterface;
 use MaplePHP\Query\Interfaces\HandlerInterface;
 
 /**
- * MAKE IMMUTABLE in future
+ * I might make it IMMUTABLE in future
  */
 class Attr implements AttrInterface
 {
-    const RAW_TYPE = 0;
-    const VALUE_TYPE = 1;
-    const COLUMN_TYPE = 2;
-    const VALUE_TYPE_NUM = 3;
-    const VALUE_TYPE_STR = 4;
+    public const RAW_TYPE = 0;
+    public const VALUE_TYPE = 1;
+    public const COLUMN_TYPE = 2;
+    public const VALUE_TYPE_NUM = 3;
+    public const VALUE_TYPE_STR = 4;
 
     private ConnectInterface|HandlerInterface $connection;
     private float|int|array|string|null $value = null;
     private float|int|array|string $raw;
-    private array $set = [];
+    //private array $set = [];
     //private bool $hasBeenEncoded = false;
 
     private int $type = 0;
@@ -82,18 +83,22 @@ class Attr implements AttrInterface
             $inst->value = (float)$inst->value;
         }
 
-        // Will not "prep" column type by default but instead it will "sanitize"
+        // Will not "prep" column type by default, but instead it will "sanitize"
         if($dataType === self::COLUMN_TYPE) {
             $inst = $inst->prep(false)->sanitize(true);
         }
         return $inst;
     }
 
+    /**
+     * Check value type
+     * @param int $type
+     * @return int
+     */
     public function isType(int $type): int
     {
         return ($this->type === $type);
     }
-
 
     /**
      * IMMUTABLE: Enable/disable MySQL prep
@@ -167,7 +172,6 @@ class Attr implements AttrInterface
      */
     public function getValue(): string
     {
-
         $inst = clone $this;
         if(is_null($inst->value)) {
             throw new BadMethodCallException("You need to set a value first with \"withValue\"");
@@ -191,7 +195,10 @@ class Attr implements AttrInterface
         }
 
         if ($inst->enclose) {
-            $inst->value = ($inst->type === self::COLUMN_TYPE) ? $this->getValueToColumn() : "'$inst->value'";
+            // Do not use backticks in PostgreSQL
+            if(!(($inst->connection instanceof PostgreSQLConnect) && $inst->type === self::COLUMN_TYPE)) {
+                $inst->value = ($inst->type === self::COLUMN_TYPE) ? $this->getValueToColumn() : "'$inst->value'";
+            }
         }
 
         return $inst->value;

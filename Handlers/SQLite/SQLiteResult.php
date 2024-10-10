@@ -1,25 +1,31 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers\SQLite;
 
+use MaplePHP\Query\Interfaces\ResultInterface;
 use ReflectionClass;
 use ReflectionException;
 use SQLite3;
 use SQLite3Result;
 
-class SQLiteResult
+class SQLiteResult implements ResultInterface
 {
     public int|string $num_rows = 0;
     private int $index = -1;
     private array|bool $rows = false;
     private array|bool $rowsObj = false;
     private SQLite3 $connection;
-    private SQLite3Result|false $query = false;
+    private SQLite3Result|false $query;
 
-    function __construct(SQLite3 $connection)
+    public function __construct(SQLite3 $connection, SQLite3Result|false $query = false)
     {
         $this->connection = $connection;
+        $this->query = $query;
+        if($this->query !== false) {
+            $this->preFetchData();
+        }
     }
 
     /**
@@ -53,7 +59,6 @@ class SQLiteResult
             $data = $this->bindToClass($data, $class, $constructor_args);
         }
         $this->endIndex();
-
         return $data;
     }
 
@@ -134,7 +139,7 @@ class SQLiteResult
     {
         $this->rowsObj = $this->rows = [];
         $this->num_rows = 0;
-        $obj = $arr = array();
+        $obj = $arr = [];
         while ($row = $this->query->fetchArray(SQLITE3_ASSOC)) {
             $arr[] = $row;
             $obj[] = (object)$row;

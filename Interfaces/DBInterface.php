@@ -7,12 +7,15 @@
 
 namespace MaplePHP\Query\Interfaces;
 
+/**
+ * @method bind(\MaplePHP\Query\Prepare $param, array $statements)
+ */
 interface DBInterface
 {
-
     /**
-     * Genrate SQL string of current instance/query
+     * Generate SQL string of current instance/query
      * @return string
      */
     public function sql(): string;
+
 }

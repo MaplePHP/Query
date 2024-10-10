@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query;
@@ -13,12 +14,10 @@ use MaplePHP\Query\Interfaces\MigrateInterface;
 
 class ConnectTest
 {
-
-
     public string $handler;
     public static self $inst;
 
-    function __construct(string $handler)
+    public function __construct(string $handler)
     {
         $this->handler = $handler;
 

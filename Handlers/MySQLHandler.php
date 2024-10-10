@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers;
@@ -155,7 +156,7 @@ class MySQLHandler implements HandlerInterface
     public function multiQuery(string $sql, object &$db = null): array
     {
         $count = 0;
-        $err = array();
+        $err = [];
         $db = $this->connection;
         if (mysqli_multi_query($db, $sql)) {
             do {

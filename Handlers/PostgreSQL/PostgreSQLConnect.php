@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers\PostgreSQL;
@@ -7,16 +8,17 @@ use Exception;
 use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Exceptions\ResultException;
 use MaplePHP\Query\Interfaces\ConnectInterface;
+use MaplePHP\Query\Interfaces\StmtInterface;
 use PgSql\Connection;
 use PgSql\Result;
 
 class PostgreSQLConnect implements ConnectInterface
 {
-
     public string $error = "";
-
     private Connection $connection;
     private PostgreSQLResult|Result $query;
+    private string $key;
+    private static int $index = 0;
 
     /**
      * @param string $server
@@ -41,11 +43,37 @@ class PostgreSQLConnect implements ConnectInterface
             throw new ConnectException('Failed to connect to PostgreSQL: ' . $e->getMessage(), $e->getCode(), $e);
         }
 
+        $this->key = "postgre_query_" . self::$index;
+        self::$index++;
+
     }
 
+    /**
+     * Get connection
+     * @return Connection
+     */
     public function getConnection(): Connection
     {
         return $this->connection;
+    }
+
+    /**
+     * Make a prepare statement
+     * @param string $query
+     * @return StmtInterface|false
+     */
+    public function prepare(string $query): StmtInterface|false
+    {
+        $index = 1;
+        $query = preg_replace_callback('/\?/', function() use(&$index) {
+            return '$' . $index++;
+        }, $query);
+
+
+        if (pg_prepare($this->connection, $this->key, $query)) {
+            return new PostgreSQLStmt($this->connection, $this->key);
+        }
+        return false;
     }
 
     /**
@@ -65,7 +93,7 @@ class PostgreSQLConnect implements ConnectInterface
      * @param int $result_mode
      * @return PostgreSQLResult|bool
      */
-    function query($query, int $result_mode = 0): PostgreSQLResult|bool
+    public function query($query, int $result_mode = 0): PostgreSQLResult|bool
     {
         if($this->connection instanceof Connection) {
             $this->query = new PostgreSQLResult($this->connection);
@@ -81,7 +109,7 @@ class PostgreSQLConnect implements ConnectInterface
      * Begin transaction
      * @return bool
      */
-    function begin_transaction(): bool
+    public function begin_transaction(): bool
     {
         return (bool)$this->query("BEGIN");
     }
@@ -90,7 +118,7 @@ class PostgreSQLConnect implements ConnectInterface
      * Commit transaction
      * @return bool
      */
-    function commit(): bool
+    public function commit(): bool
     {
         return (bool)$this->query("COMMIT");
     }
@@ -99,7 +127,7 @@ class PostgreSQLConnect implements ConnectInterface
      * Rollback transaction
      * @return bool
      */
-    function rollback(): bool
+    public function rollback(): bool
     {
         return (bool)$this->query("ROLLBACK");
     }
@@ -109,7 +137,7 @@ class PostgreSQLConnect implements ConnectInterface
      * @return mixed
      * @throws ResultException
      */
-    function insert_id(?string $column = null): int
+    public function insert_id(?string $column = null): int
     {
         if(is_null($column)) {
             throw new ResultException("PostgreSQL expects a column name for a return result.");
@@ -121,7 +149,7 @@ class PostgreSQLConnect implements ConnectInterface
      * Close the connection
      * @return true
      */
-    function close(): true
+    public function close(): true
     {
         pg_close($this->connection);
         return true;
@@ -132,7 +160,7 @@ class PostgreSQLConnect implements ConnectInterface
      * @param string $value
      * @return string
      */
-    function prep(string $value): string
+    public function prep(string $value): string
     {
         return pg_escape_string($this->connection, $value);
     }

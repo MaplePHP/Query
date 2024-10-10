@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query;
@@ -515,7 +516,7 @@ class DB extends AbstractDB
     public function join(
         string|array|MigrateInterface $table,
         string|array $where = null,
-        array $sprint = array(),
+        array $sprint = [],
         string $type = "INNER"
     ): self {
         if ($table instanceof MigrateInterface) {
@@ -531,7 +532,7 @@ class DB extends AbstractDB
             $alias = (!is_null($arr['alias'])) ? " {$arr['alias']}" : " $table";
 
             if (is_array($where)) {
-                $data = array();
+                $data = [];
                 foreach ($where as $key => $val) {
                     if (is_array($val)) {
                         foreach ($val as $grpKey => $grpVal) {
@@ -642,7 +643,7 @@ class DB extends AbstractDB
     // Same as onDupKey
     public function onDuplicateKey($key = null, ?string $value = null): self
     {
-        $this->dupSet = array();
+        $this->dupSet = [];
         if (!is_null($key)) {
             if (is_array($key)) {
                 $this->dupSet = $this->prepArr($key);
@@ -666,14 +667,14 @@ class DB extends AbstractDB
         return $this->unionRaw($inst->sql(), $allowDuplicate);
     }
 
-     /**
-     * Union raw result, create union with raw SQL code
-     * @param  string  $sql
-     * @param  bool    $allowDuplicate  UNION by default selects only distinct values.
-     *                                  Use UNION ALL to also select duplicate values!
-     * @mixin AbstractDB
-     * @return self
-     */
+    /**
+    * Union raw result, create union with raw SQL code
+    * @param  string  $sql
+    * @param  bool    $allowDuplicate  UNION by default selects only distinct values.
+    *                                  Use UNION ALL to also select duplicate values!
+    * @mixin AbstractDB
+    * @return self
+    */
     public function unionRaw(string $sql, bool $allowDuplicate = false): self
     {
         $this->order = null;
@@ -708,7 +709,7 @@ class DB extends AbstractDB
         if (is_null($arr)) {
             $arr = $this->set;
         }
-        $new = array();
+        $new = [];
         foreach ($arr as $key => $val) {
             $new[] = "$key = $val";
         }

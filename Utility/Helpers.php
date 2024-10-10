@@ -7,9 +7,8 @@ use InvalidArgumentException;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
 
-
-class Helpers {
-
+class Helpers
+{
     protected const OPERATORS = [">", ">=", "<", "<>", "!=", "<=", "<=>"]; // Comparison operators
     protected const JOIN_TYPES = ["INNER", "LEFT", "RIGHT", "CROSS"]; // Join types
 
@@ -73,7 +72,7 @@ class Helpers {
 
     public static function buildJoinData(DBInterface $inst, string|array $where): array
     {
-        $data = array();
+        $data = [];
         if (is_array($where)) {
             foreach ($where as $key => $val) {
                 if (is_array($val)) {
@@ -95,7 +94,7 @@ class Helpers {
         return $data;
     }
 
-    function validateIdentifiers($column): bool
+    public function validateIdentifiers($column): bool
     {
         return (preg_match('/^[a-zA-Z0-9_]+$/', $column) !== false);
     }
@@ -124,7 +123,7 @@ class Helpers {
      */
     public static function prepArr(array $arr, bool $enclose = true): array
     {
-        $new = array();
+        $new = [];
         foreach ($arr as $pKey => $pVal) {
             $key = (string)static::prep($pKey, false);
             $new[$key] = (string)static::prep($pVal, $enclose);

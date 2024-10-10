@@ -18,7 +18,7 @@ use MaplePHP\Query\Interfaces\QueryBuilderInterface;
 use MaplePHP\Query\Utility\Helpers;
 use MaplePHP\Query\Utility\Attr;
 
-class QueryBuilder implements QueryBuilderInterface
+class QueryBuilderLegacy implements QueryBuilderInterface
 {
     private DBInterface $db;
     private array $set = [];
@@ -40,8 +40,8 @@ class QueryBuilder implements QueryBuilderInterface
         $columns = $this->getColumns();
         $distinct = $this->getDistinct();
         $join = $this->getJoin();
-        $where = $this->getWhere("WHERE", $this->db->where);
-        $having = $this->getWhere("HAVING", $this->db->having);
+        $where = $this->getWhere("WHERE", $this->db->__get('where'));
+        $having = $this->getWhere("HAVING", $this->db->__get('having'));
         $order = $this->getOrder();
         $limit = $this->getLimit();
         $group = $this->getGroup();
@@ -53,7 +53,7 @@ class QueryBuilder implements QueryBuilderInterface
 
     public function getTable(): string
     {
-        return Helpers::addAlias($this->db->table, $this->db->alias);
+        return Helpers::addAlias($this->db->__get('table'), $this->db->__get('alias'));
     }
 
     /**
@@ -71,7 +71,7 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getExplain(): string
     {
-        return ($this->db->explain) ? "EXPLAIN " : "";
+        return ($this->db->__get('explain')) ? "EXPLAIN " : "";
     }
 
     /**
@@ -80,7 +80,7 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getDistinct(): string
     {
-        return ($this->db->distinct) ? "DISTINCT " : "";
+        return ($this->db->__get('distinct')) ? "DISTINCT " : "";
     }
 
     /**
@@ -89,7 +89,7 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getNoCache(): string
     {
-        return ($this->db->noCache) ? "SQL_NO_CACHE " : "";
+        return ($this->db->__get('noCache')) ? "SQL_NO_CACHE " : "";
     }
 
     /**
@@ -98,11 +98,11 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getColumns(): string
     {
-        if(is_null($this->db->columns)) {
+        if(is_null($this->db->__get('columns'))) {
             return "*";
         }
         $create = [];
-        $columns = $this->db->columns;
+        $columns = $this->db->__get('columns');
         foreach($columns as $row) {
             $create[] = Helpers::addAlias($row['column'], $row['alias'], "AS");
         }
@@ -115,8 +115,8 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getOrder(): string
     {
-        return (!is_null($this->db->order)) ?
-            " ORDER BY " . implode(",", Helpers::getOrderBy($this->db->order)) : "";
+        return (!is_null($this->db->__get('order'))) ?
+            " ORDER BY " . implode(",", Helpers::getOrderBy($this->db->__get('order'))) : "";
     }
 
     /**
@@ -125,7 +125,7 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getGroup(): string
     {
-        return (!is_null($this->db->group)) ? " GROUP BY " . implode(",", $this->db->group) : "";
+        return (!is_null($this->db->__get('group'))) ? " GROUP BY " . implode(",", $this->db->__get('group')) : "";
     }
 
     /**
@@ -159,7 +159,7 @@ class QueryBuilder implements QueryBuilderInterface
     protected function getJoin(): string
     {
         $join = "";
-        $data = $this->db->join;
+        $data = $this->db->__get("join");
         foreach ($data as $row) {
             $table = Helpers::addAlias($row['table'], $row['alias']);
             $where = $this->getWhere("ON", $row['whereData']);
@@ -174,12 +174,12 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getLimit(): string
     {
-        $limit = $this->db->limit;
-        if (is_null($limit) && !is_null($this->db->offset)) {
+        $limit = $this->db->__get('limit');
+        if (is_null($limit) && !is_null($this->db->__get('offset'))) {
             $limit = 1;
         }
         $limit = $this->getAttrValue($limit);
-        $offset = (!is_null($this->db->offset)) ? "," . $this->getAttrValue($this->db->offset) : "";
+        $offset = (!is_null($this->db->__get("offset"))) ? "," . $this->getAttrValue($this->db->__get("offset")) : "";
         return (!is_null($limit)) ? " LIMIT $limit $offset" : "";
     }
 
@@ -228,7 +228,7 @@ class QueryBuilder implements QueryBuilderInterface
      */
     public function getUnion(): string
     {
-        $union = $this->db->union;
+        $union = $this->db->__get('union');
         if(!is_null($union)) {
 
             $sql = "";
@@ -249,7 +249,7 @@ class QueryBuilder implements QueryBuilderInterface
      */
     public function getAttrValue($value): ?string
     {
-        if($this->db->prepare) {
+        if($this->db->__get('prepare')) {
             if($value instanceof AttrInterface && ($value->isType(Attr::VALUE_TYPE) ||
                     $value->isType(Attr::VALUE_TYPE_NUM) || $value->isType(Attr::VALUE_TYPE_STR))) {
                 $this->set[] = $value->type(Attr::RAW_TYPE);
@@ -265,6 +265,9 @@ class QueryBuilder implements QueryBuilderInterface
      */
     public function getSet(): array
     {
+        if(!$this->db->__get('prepare')) {
+            throw new RuntimeException("Prepare method not available");
+        }
         return $this->set;
     }
 

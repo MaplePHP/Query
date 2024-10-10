@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers\PostgreSQL;
@@ -15,10 +16,15 @@ class PostgreSQLResult implements ResultInterface
 
     /**
      * @param Connection $connection
+     * @param Result|null $query
      */
-    public function __construct(Connection $connection)
+    public function __construct(Connection $connection, ?Result $query = null)
     {
-       $this->connection = $connection;
+        $this->connection = $connection;
+        if(!is_null($query)) {
+            $this->query = $query;
+            $this->num_rows = pg_affected_rows($this->query);
+        }
     }
 
     /**
