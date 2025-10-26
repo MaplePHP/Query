@@ -21,7 +21,7 @@ class ConnectTest
     {
         $this->handler = $handler;
 
-        if(is_null(self::$inst)) {
+        if (self::$inst === null) {
             self::$inst = $this;
         }
     }

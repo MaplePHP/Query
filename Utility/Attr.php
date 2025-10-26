@@ -29,7 +29,7 @@ class Attr implements AttrInterface
 
     private int $type = 0;
     private bool $prep = true;
-    private bool $sanitize = true;
+    private bool $sanitize = false;
     private bool $enclose = true;
     private bool $jsonEncode = false;
     private bool $encode = false;
@@ -69,22 +69,22 @@ class Attr implements AttrInterface
     public function type(int $dataType): static
     {
         $inst = clone $this;
-        if($dataType < 0 || $dataType > self::VALUE_TYPE_STR) {
+        if ($dataType < 0 || $dataType > self::VALUE_TYPE_STR) {
             throw new InvalidArgumentException('The data type expects to be either "RAW_TYPE (0), VALUE_TYPE (1), 
                 COLUMN_TYPE (2), VALUE_TYPE_NUM (3), VALUE_TYPE_STR (4)"!');
         }
         $inst->type = $dataType;
-        if($dataType === self::RAW_TYPE) {
+        if ($dataType === self::RAW_TYPE) {
             $inst = $inst->prep(false)->enclose(false)->encode(false)->sanitize(false);
         }
 
-        if($dataType === self::VALUE_TYPE_NUM) {
+        if ($dataType === self::VALUE_TYPE_NUM) {
             $inst = $inst->enclose(false);
             $inst->value = (float)$inst->value;
         }
 
         // Will not "prep" column type by default, but instead it will "sanitize"
-        if($dataType === self::COLUMN_TYPE) {
+        if ($dataType === self::COLUMN_TYPE) {
             $inst = $inst->prep(false)->sanitize(true);
         }
         return $inst;
@@ -173,7 +173,7 @@ class Attr implements AttrInterface
     public function getValue(): string
     {
         $inst = clone $this;
-        if(is_null($inst->value)) {
+        if ($inst->value === null) {
             throw new BadMethodCallException("You need to set a value first with \"withValue\"");
         }
 
@@ -190,14 +190,14 @@ class Attr implements AttrInterface
             $inst->value = json_encode($inst->value);
         }
 
-        if($inst->prep) {
+        if ($inst->prep) {
             $inst->value = $inst->connection->prep($inst->value);
         }
 
         if ($inst->enclose) {
             // Do not use backticks in PostgreSQL
-            if(!(($inst->connection instanceof PostgreSQLConnect) && $inst->type === self::COLUMN_TYPE)) {
-                $inst->value = ($inst->type === self::COLUMN_TYPE) ? $this->getValueToColumn() : "'$inst->value'";
+            if (!(($inst->connection instanceof PostgreSQLConnect) && $inst->type === self::COLUMN_TYPE)) {
+                $inst->value = ($inst->type === self::COLUMN_TYPE) ? $inst->getValueToColumn($inst->value) : "'$inst->value'";
             }
         }
 
@@ -206,13 +206,14 @@ class Attr implements AttrInterface
 
     /**
      * Will convert a value to a column type
+     * @param $value
      * @return string
      */
-    protected function getValueToColumn(): string
+    protected function getValueToColumn($value): string
     {
         $arr = [];
-        $exp = explode('.', $this->value);
-        foreach($exp as $value) {
+        $exp = explode('.', $value);
+        foreach ($exp as $value) {
             $arr[] = "`$value`";
         }
         return implode('.', $arr);

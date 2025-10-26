@@ -52,7 +52,7 @@ class Connect implements ConnectInterface
      */
     public function __call(string $method, array $arguments): object|false
     {
-        if(is_null($this->connection)) {
+        if ($this->connection === null) {
             throw new ConnectException("The connection has not been initialized yet.");
         }
         return call_user_func_array([$this->connection, $method], $arguments);
@@ -67,7 +67,7 @@ class Connect implements ConnectInterface
     public static function getInstance(?string $key = null): self
     {
         $key = self::getKey($key);
-        if(!self::hasInstance($key)) {
+        if (!self::hasInstance($key)) {
             throw new ConnectException("Connection Error: No active connection or connection instance found.");
         }
         self::$current = $key;
@@ -96,7 +96,7 @@ class Connect implements ConnectInterface
     public static function setHandler(HandlerInterface $handler, ?string $key = null): self
     {
         $key = self::getKey($key);
-        if(self::hasInstance($key)) {
+        if (self::hasInstance($key)) {
             throw new InvalidArgumentException("A handler is already connected with key \"$key\"!");
         }
         self::$inst[$key] = new self($handler);
@@ -110,14 +110,14 @@ class Connect implements ConnectInterface
      */
     public static function removeHandler(string $key): void
     {
-        if($key === "default") {
+        if ($key === "default") {
             throw new InvalidArgumentException("You can not remove the default handler!");
         }
-        if(!self::hasInstance($key)) {
+        if (!self::hasInstance($key)) {
             throw new InvalidArgumentException("The handler with with key \"$key\" does not exist!");
         }
         unset(self::$inst[$key]);
-        if(self::$current === $key) {
+        if (self::$current === $key) {
             self::$current = "default";
         }
     }
@@ -143,7 +143,7 @@ class Connect implements ConnectInterface
     {
         try {
             $this->connection = $this->handler->execute();
-        } catch(Exception $e) {
+        } catch (Exception $e) {
             throw new ConnectException($e->getMessage(), $e->getCode(), $e);
         }
     }
@@ -262,9 +262,9 @@ class Connect implements ConnectInterface
      */
     public function transaction(): ConnectInterface
     {
-        if(!$this->begin_transaction()) {
+        if (!$this->begin_transaction()) {
             $errorMsg = "Couldn't start transaction!";
-            if(!empty($this->connection->error)) {
+            if (!empty($this->connection->error)) {
                 $errorMsg = "The transaction error: " . $this->connection->error;
             }
             throw new ConnectException($errorMsg);
@@ -279,7 +279,7 @@ class Connect implements ConnectInterface
      */
     private static function getKey(?string $key = null): string
     {
-        return (is_null($key)) ? "default" : $key;
+        return ($key === null) ? "default" : $key;
     }
 
     /**

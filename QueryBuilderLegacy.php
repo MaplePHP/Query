@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Query SQL string Builder
  *
@@ -98,12 +99,12 @@ class QueryBuilderLegacy implements QueryBuilderInterface
      */
     protected function getColumns(): string
     {
-        if(is_null($this->db->__get('columns'))) {
+        if ($this->db->__get('columns') === null) {
             return "*";
         }
         $create = [];
         $columns = $this->db->__get('columns');
-        foreach($columns as $row) {
+        foreach ($columns as $row) {
             $create[] = Helpers::addAlias($row['column'], $row['alias'], "AS");
         }
         return implode(",", $create);
@@ -115,7 +116,7 @@ class QueryBuilderLegacy implements QueryBuilderInterface
      */
     protected function getOrder(): string
     {
-        return (!is_null($this->db->__get('order'))) ?
+        return ($this->db->__get('order') !== null) ?
             " ORDER BY " . implode(",", Helpers::getOrderBy($this->db->__get('order'))) : "";
     }
 
@@ -125,7 +126,7 @@ class QueryBuilderLegacy implements QueryBuilderInterface
      */
     protected function getGroup(): string
     {
-        return (!is_null($this->db->__get('group'))) ? " GROUP BY " . implode(",", $this->db->__get('group')) : "";
+        return ($this->db->__get('group') !== null) ? " GROUP BY " . implode(",", $this->db->__get('group')) : "";
     }
 
     /**
@@ -138,7 +139,7 @@ class QueryBuilderLegacy implements QueryBuilderInterface
     protected function getWhere(string $prefix, ?array $where, array &$set = []): string
     {
         $out = "";
-        if (!is_null($where)) {
+        if ($where !== null) {
             $out = " $prefix";
             $index = 0;
             foreach ($where as $array) {
@@ -175,12 +176,12 @@ class QueryBuilderLegacy implements QueryBuilderInterface
     protected function getLimit(): string
     {
         $limit = $this->db->__get('limit');
-        if (is_null($limit) && !is_null($this->db->__get('offset'))) {
+        if ($limit === null && $this->db->__get('offset') !== null) {
             $limit = 1;
         }
         $limit = $this->getAttrValue($limit);
-        $offset = (!is_null($this->db->__get("offset"))) ? "," . $this->getAttrValue($this->db->__get("offset")) : "";
-        return (!is_null($limit)) ? " LIMIT $limit $offset" : "";
+        $offset = ($this->db->__get("offset") !== null) ? "," . $this->getAttrValue($this->db->__get("offset")) : "";
+        return ($limit !== null) ? " LIMIT $limit $offset" : "";
     }
 
     /**
@@ -229,10 +230,10 @@ class QueryBuilderLegacy implements QueryBuilderInterface
     public function getUnion(): string
     {
         $union = $this->db->__get('union');
-        if(!is_null($union)) {
+        if ($union !== null) {
 
             $sql = "";
-            foreach($union as $row) {
+            foreach ($union as $row) {
                 $inst = new self($row['inst']);
                 $sql .= "  UNION " . $inst->sql();
             }
@@ -249,14 +250,14 @@ class QueryBuilderLegacy implements QueryBuilderInterface
      */
     public function getAttrValue($value): ?string
     {
-        if($this->db->__get('prepare')) {
-            if($value instanceof AttrInterface && ($value->isType(Attr::VALUE_TYPE) ||
+        if ($this->db->__get('prepare')) {
+            if ($value instanceof AttrInterface && ($value->isType(Attr::VALUE_TYPE) ||
                     $value->isType(Attr::VALUE_TYPE_NUM) || $value->isType(Attr::VALUE_TYPE_STR))) {
                 $this->set[] = $value->type(Attr::RAW_TYPE);
                 return "?";
             }
         }
-        return is_null($value) ? null : (string)$value;
+        return $value === null ? null : (string)$value;
     }
 
     /**
@@ -265,7 +266,7 @@ class QueryBuilderLegacy implements QueryBuilderInterface
      */
     public function getSet(): array
     {
-        if(!$this->db->__get('prepare')) {
+        if (!$this->db->__get('prepare')) {
             throw new RuntimeException("Prepare method not available");
         }
         return $this->set;

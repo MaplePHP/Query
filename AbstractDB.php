@@ -95,7 +95,7 @@ abstract class AbstractDB implements DBInterface
      */
     public function setConnKey(?string $key): void
     {
-        $this->connKey = is_null($key) ? "default" : $key;
+        $this->connKey = $key === null ? "default" : $key;
     }
 
     /**
@@ -124,7 +124,7 @@ abstract class AbstractDB implements DBInterface
      */
     public function getTable(bool $withAlias = false): string
     {
-        $alias = ($withAlias && !is_null($this->alias)) ? " $this->alias" : "";
+        $alias = ($withAlias && $this->alias !== null) ? " $this->alias" : "";
         return $this->connInst()->getHandler()->getPrefix() . $this->table . $alias;
     }
 
@@ -135,10 +135,10 @@ abstract class AbstractDB implements DBInterface
      */
     public function getColumns(): array
     {
-        if(is_string($this->columns)) {
+        if (is_string($this->columns)) {
             return explode(",", $this->columns);
         }
-        if (!is_null($this->mig) && !$this->mig->columns($this->columns)) {
+        if ($this->mig !== null && !$this->mig->columns($this->columns)) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
         return $this->columns;
@@ -236,13 +236,13 @@ abstract class AbstractDB implements DBInterface
      */
     final protected function setWhereData(string|AttrInterface $key, string|int|float|AttrInterface $val, ?array &$data): void
     {
-        if (is_null($data)) {
+        if ($data === null) {
             $data = [];
         }
         $key = (string)$this->prep($key, false);
         $val = $this->prep($val);
 
-        if (!is_null($this->mig) && !$this->mig->where($key, $val)) {
+        if ($this->mig !== null && !$this->mig->where($key, $val)) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
 
@@ -295,7 +295,7 @@ abstract class AbstractDB implements DBInterface
      */
     final protected function getMainFKData(): array
     {
-        if (is_null($this->fkData)) {
+        if ($this->fkData === null) {
             $this->fkData = [];
             foreach ($this->mig->getMig()->getData() as $col => $row) {
                 if (isset($row['fk'])) {
@@ -425,7 +425,7 @@ abstract class AbstractDB implements DBInterface
      */
     protected function getAllQueryTables(): ?string
     {
-        if (!is_null($this->joinedTables)) {
+        if ($this->joinedTables !== null) {
             $columns = $this->joinedTables;
             array_unshift($columns, $this->getTable());
             return implode(",", $columns);
@@ -445,7 +445,7 @@ abstract class AbstractDB implements DBInterface
     {
         $query = new Query($sql, $this->connInst());
         $query->setPluck($this->pluck);
-        if (!is_null($method)) {
+        if ($method !== null) {
             if (method_exists($query, $method)) {
                 return call_user_func_array([$query, $method], $args);
             }

@@ -16,13 +16,12 @@ use MaplePHP\Query\Connect;
 //if (Connect::hasInstance() && Connect::getInstance()->hasConnection()) {
 
     $unit = new Unit();
-    $handler = new MySQLHandler(getenv("DATABASE_HOST"), getenv("DATABASE_USERNAME"), getenv("DATABASE_PASSWORD"), "test");
+
+    /*
+     $handler = new MySQLHandler(getenv("DATABASE_HOST"), getenv("DATABASE_USERNAME"), getenv("DATABASE_PASSWORD"), "test");
     $handler->setPrefix("maple_");
     $db = new DBTest($handler);
-
-
-
-
+     */
 
     $unit->case("OK", function () use ($unit) {
 
@@ -58,7 +57,7 @@ use MaplePHP\Query\Connect;
     // Add a title to your tests (not required)
     $unit->addTitle("Testing MaplePHP Query library!");
     foreach($instances as $key) {
-        $message = "Error in " . (is_null($key) ? "mysql" : $key);
+        $message = "Error in " . ($key === null ? "mysql" : $key);
         $unit->add($message, function ($inst) use ($unit, $key, $instances) {
 
             // Select handler

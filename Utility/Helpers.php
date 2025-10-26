@@ -63,7 +63,7 @@ class Helpers
     public static function getOrderBy(array $arr): array
     {
         $new = [];
-        foreach($arr as $row) {
+        foreach ($arr as $row) {
             $new[] = "{$row['column']} {$row['sort']}";
         }
         return $new;
@@ -77,13 +77,13 @@ class Helpers
             foreach ($where as $key => $val) {
                 if (is_array($val)) {
                     foreach ($val as $grpKey => $grpVal) {
-                        if(!($grpVal instanceof AttrInterface)) {
+                        if (!($grpVal instanceof AttrInterface)) {
                             $grpVal = "%s";
                         }
                         $inst->setWhereData($grpKey, $grpVal, $data);
                     }
                 } else {
-                    if(!($val instanceof AttrInterface)) {
+                    if (!($val instanceof AttrInterface)) {
                         $val = "%s";
                     }
                     $inst->setWhereData($key, $val, $data);
@@ -177,7 +177,7 @@ class Helpers
     public static function withAttr(array|string|int|float $value, ?array $args = null): AttrInterface
     {
         $inst = static::getAttr($value);
-        if (!is_null($args)) {
+        if ($args !== null) {
             foreach ($args as $method => $arg) {
                 if (!method_exists($inst, $method)) {
                     throw new BadMethodCallException("The Query Attr method \"" .htmlspecialchars($method, ENT_QUOTES). "\" does not exists!", 1);
@@ -218,7 +218,7 @@ class Helpers
      */
     public static function addAlias(string|AttrInterface $table, null|string|AttrInterface $alias = null, string $command = ""): string
     {
-        if(!is_null($alias)) {
+        if ($alias !== null) {
             $table .= ($command ? " {$command} " : " ") . $alias;
         }
         return $table;
@@ -232,7 +232,7 @@ class Helpers
      */
     public static function toAlias(string|AttrInterface $table, null|string|AttrInterface $alias = null): string
     {
-        if(!is_null($alias)) {
+        if ($alias !== null) {
             $table .= " AS " . $alias;
         }
         return $table;

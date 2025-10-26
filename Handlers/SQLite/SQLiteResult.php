@@ -23,7 +23,7 @@ class SQLiteResult implements ResultInterface
     {
         $this->connection = $connection;
         $this->query = $query;
-        if($this->query !== false) {
+        if ($this->query !== false) {
             $this->preFetchData();
         }
     }
@@ -35,7 +35,7 @@ class SQLiteResult implements ResultInterface
      */
     public function query($sql): self|false
     {
-        if($this->query = $this->connection->query($sql)) {
+        if ($this->query = $this->connection->query($sql)) {
             $this->preFetchData();
             return $this;
         }
@@ -51,7 +51,7 @@ class SQLiteResult implements ResultInterface
      */
     public function fetch_object(string $class = "stdClass", array $constructor_args = []): object|false|null
     {
-        if(!$this->startIndex()) {
+        if (!$this->startIndex()) {
             return false;
         }
         $data = $this->rowsObj[$this->index] ?? false;
@@ -69,10 +69,10 @@ class SQLiteResult implements ResultInterface
      */
     public function fetch_array(int $mode = PGSQL_BOTH): array|false|null
     {
-        if($mode !== SQLITE3_ASSOC) {
+        if ($mode !== SQLITE3_ASSOC) {
             return $this->query->fetchArray($mode);
         }
-        if(!$this->startIndex()) {
+        if (!$this->startIndex()) {
             return false;
         }
         $data = $this->rows[$this->index] ?? false;
@@ -87,7 +87,7 @@ class SQLiteResult implements ResultInterface
      */
     public function fetch_assoc(): array|false|null
     {
-        if(!$this->startIndex()) {
+        if (!$this->startIndex()) {
             return false;
         }
         $data = $this->rows[$this->index] ?? false;
@@ -146,7 +146,7 @@ class SQLiteResult implements ResultInterface
             $this->num_rows++;
         }
 
-        if(count($arr) > 0) {
+        if (count($arr) > 0) {
             $this->rows = $arr;
             $this->rowsObj = $obj;
         }
@@ -158,7 +158,7 @@ class SQLiteResult implements ResultInterface
      */
     protected function startIndex(): bool
     {
-        if(($this->rows === false)) {
+        if (($this->rows === false)) {
             return false;
         }
         $this->index++;
@@ -171,7 +171,7 @@ class SQLiteResult implements ResultInterface
      */
     protected function endIndex(): void
     {
-        if($this->index >= $this->num_rows) {
+        if ($this->index >= $this->num_rows) {
             $this->index = -1;
         }
     }
@@ -189,7 +189,7 @@ class SQLiteResult implements ResultInterface
         $reflection = new ReflectionClass($class);
         $object = $reflection->newInstanceArgs($constructor_args);
         foreach ($data as $key => $value) {
-            if (property_exists($object, $key) && is_null($object->{$key})) {
+            if (property_exists($object, $key) && $object->{$key} === null) {
                 $object->{$key} = $value;
             }
         }

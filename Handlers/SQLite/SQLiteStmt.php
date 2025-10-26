@@ -39,8 +39,8 @@ class SQLiteStmt implements StmtInterface
     public function bind_param(string $types, mixed &$var, mixed &...$vars): bool
     {
         $params = array_merge([$var], $vars);
-        foreach($params as $key => $value) {
-            if(!$this->stmt->bindValue(($key + 1), $params[0], SQLITE3_TEXT)) {
+        foreach ($params as $key => $value) {
+            if (!$this->stmt->bindValue(($key + 1), $params[0], SQLITE3_TEXT)) {
                 return false;
             }
         }

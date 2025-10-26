@@ -30,13 +30,13 @@ class PostgreSQLConnect implements ConnectInterface
      */
     public function __construct(string $server, string $user, string $pass, string $dbname, int $port = 5432)
     {
-        if(!function_exists('pg_connect')) {
+        if (!function_exists('pg_connect')) {
             throw new ConnectException('PostgreSQL php functions is missing and needs to be installed.', 1);
         }
 
         try {
             $this->connection = pg_connect("host=$server port=$port dbname=$dbname user=$user password=$pass");
-            if (!is_null($this->connection)) {
+            if ($this->connection !== null) {
                 $this->error = pg_last_error($this->connection);
             }
         } catch (Exception $e) {
@@ -65,7 +65,7 @@ class PostgreSQLConnect implements ConnectInterface
     public function prepare(string $query): StmtInterface|false
     {
         $index = 1;
-        $query = preg_replace_callback('/\?/', function() use(&$index) {
+        $query = preg_replace_callback('/\?/', function () use (&$index) {
             return '$' . $index++;
         }, $query);
 
@@ -95,9 +95,9 @@ class PostgreSQLConnect implements ConnectInterface
      */
     public function query($query, int $result_mode = 0): PostgreSQLResult|bool
     {
-        if($this->connection instanceof Connection) {
+        if ($this->connection instanceof Connection) {
             $this->query = new PostgreSQLResult($this->connection);
-            if($query = $this->query->query($query)) {
+            if ($query = $this->query->query($query)) {
                 return $query;
             }
             $this->error = pg_result_error($this->query);
@@ -139,7 +139,7 @@ class PostgreSQLConnect implements ConnectInterface
      */
     public function insert_id(?string $column = null): int
     {
-        if(is_null($column)) {
+        if ($column === null) {
             throw new ResultException("PostgreSQL expects a column name for a return result.");
         }
         return (int)pg_fetch_result($this->query, 0, $column);

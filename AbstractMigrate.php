@@ -18,7 +18,7 @@ abstract class AbstractMigrate implements MigrateInterface
     public function __construct(string $table, ?string $prefix = null)
     {
         /*
-         if (is_null($prefix)) {
+         if ($prefix === null) {
             $prefix = getenv("MYSQL_PREFIX");
             if ($prefix === false) {
                 throw new Exception("Table prefix is required!", 1);

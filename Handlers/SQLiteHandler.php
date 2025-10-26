@@ -63,7 +63,7 @@ class SQLiteHandler implements HandlerInterface
      */
     public function hasConnection(): bool
     {
-        if (!is_null($this->connection)) {
+        if ($this->connection !== null) {
             $result = $this->connection->query('PRAGMA quick_check');
             $obj = $result->fetch_object();
             return ($obj->quick_check ?? "") === 'ok';
@@ -148,7 +148,7 @@ class SQLiteHandler implements HandlerInterface
      * @param  object|null &$db
      * @return array
      */
-    public function multiQuery(string $sql, object &$db = null): array
+    public function multiQuery(string $sql, ?object &$db = null): array
     {
         $count = 0;
         $err = [];

@@ -68,7 +68,7 @@ class MySQLHandler implements HandlerInterface
      */
     public function hasConnection(): bool
     {
-        return (!is_null($this->connection) && $this->connection->ping());
+        return ($this->connection !== null && $this->connection->ping());
     }
 
     /**
@@ -153,7 +153,7 @@ class MySQLHandler implements HandlerInterface
      * @param  object|null &$db
      * @return array
      */
-    public function multiQuery(string $sql, object &$db = null): array
+    public function multiQuery(string $sql, ?object &$db = null): array
     {
         $count = 0;
         $err = [];

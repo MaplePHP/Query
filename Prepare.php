@@ -23,6 +23,7 @@ class Prepare
     {
         $this->query = $db;
         $this->sql = $db->prepare()->sql();
+        $this->statements[0] = $db->prepare();
         $this->stmt = $db->getConnection()->prepare($this->sql);
     }
 
@@ -35,7 +36,7 @@ class Prepare
     public function __call(string $name, array $arguments): mixed
     {
         $query = $this->prepExecute();
-        if(!method_exists($query, $name)) {
+        if (!method_exists($query, $name)) {
             throw new \BadMethodCallException("The method '$name' does not exist in " . get_class($query) . ".");
         }
         return $query->$name(...$arguments);
@@ -86,7 +87,7 @@ class Prepare
      */
     public function getKeys(int $length): string
     {
-        if(is_null($this->keys)) {
+        if ($this->keys === null) {
             $this->keys = str_pad("", $length, "s");
         }
         return $this->keys;
@@ -96,7 +97,7 @@ class Prepare
      * This will the rest of the library that it expects a prepended call
      * @return Query
      */
-    private function prepExecute(): Query
+    public function prepExecute(): Query
     {
         return $this->query->bind($this, $this->statements);
     }
@@ -106,7 +107,7 @@ class Prepare
      * @return array|bool|object
      * @throws ConnectException
      */
-    function execute(): object|bool|array
+    public function execute(): object|bool|array
     {
         $query = $this->prepExecute();
         return $query->execute();

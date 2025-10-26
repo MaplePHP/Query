@@ -160,7 +160,7 @@ class DB extends AbstractDB
         $inst->mig = $mig;
         $inst->setConnKey(Connect::$current);
 
-        if (is_null($inst->alias)) {
+        if ($inst->alias === null) {
             $inst->alias = $inst->table;
         }
         return $inst;
@@ -177,7 +177,7 @@ class DB extends AbstractDB
     {
         $inst = new self();
         $inst = $inst->getAttr($value);
-        if (!is_null($args)) {
+        if ($args !== null) {
             foreach ($args as $method => $arg) {
                 if (!method_exists($inst, $method)) {
                     throw new DBValidationException("The Query Attr method \"" .htmlspecialchars($method, ENT_QUOTES). "\" does not exists!", 1);
@@ -196,11 +196,11 @@ class DB extends AbstractDB
      */
     protected function select(): self
     {
-        $columns = is_null($this->columns) ? "*" : implode(",", $this->getColumns());
+        $columns = $this->columns === null ? "*" : implode(",", $this->getColumns());
         $join = $this->buildJoin();
         $where = $this->buildWhere("WHERE", $this->where);
         $having = $this->buildWhere("HAVING", $this->having);
-        $order = (!is_null($this->order)) ? " ORDER BY " . implode(",", $this->order) : "";
+        $order = ($this->order !== null) ? " ORDER BY " . implode(",", $this->order) : "";
         $limit = $this->buildLimit();
         $this->sql = "{$this->explain}SELECT $this->noCache$this->calRows$this->distinct$columns FROM " .
         $this->getTable(true) . "$join$where$this->group$having$order$limit$this->union";
@@ -254,7 +254,7 @@ class DB extends AbstractDB
     protected function delete(): self
     {
         $linkedTables = $this->getAllQueryTables();
-        if (!is_null($linkedTables)) {
+        if ($linkedTables !== null) {
             $linkedTables = " $linkedTables";
         }
         $join = $this->buildJoin();
@@ -358,7 +358,7 @@ class DB extends AbstractDB
     public function where(string|AttrInterface $column, string|int|float|AttrInterface $value, ?string $operator = null): self
     {
         // Whitelist operator
-        if (!is_null($operator)) {
+        if ($operator !== null) {
             $this->compare = $this->operator($operator);
         }
         $this->setWhereData($column, $value, $this->where);
@@ -372,7 +372,7 @@ class DB extends AbstractDB
      */
     public function whereBind(callable $call): self
     {
-        if (!is_null($this->where)) {
+        if ($this->where !== null) {
             $this->whereIndex++;
         }
         $this->resetWhere();
@@ -391,7 +391,7 @@ class DB extends AbstractDB
      */
     public function having(string|AttrInterface $column, string|int|float|AttrInterface $value, ?string $operator = null): self
     {
-        if (!is_null($operator)) {
+        if ($operator !== null) {
             $this->compare = $this->operator($operator);
         }
         $this->setWhereData($column, $value, $this->having);
@@ -424,7 +424,7 @@ class DB extends AbstractDB
     public function limit(int $limit, ?int $offset = null): self
     {
         $this->limit = $limit;
-        if (!is_null($offset)) {
+        if ($offset !== null) {
             $this->offset = $offset;
         }
         return $this;
@@ -452,7 +452,7 @@ class DB extends AbstractDB
     {
         $column = $this->prep($column, false);
 
-        if (!is_null($this->mig) && !$this->mig->columns([(string)$column])) {
+        if ($this->mig !== null && !$this->mig->columns([(string)$column])) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
         $sort = $this->orderSort($sort); // Whitelist
@@ -484,7 +484,7 @@ class DB extends AbstractDB
      */
     public function group(...$columns): self
     {
-        if (!is_null($this->mig) && !$this->mig->columns($columns)) {
+        if ($this->mig !== null && !$this->mig->columns($columns)) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
         $this->group = " GROUP BY " . implode(",", $this->prepArr($columns, false));
@@ -522,27 +522,27 @@ class DB extends AbstractDB
         if ($table instanceof MigrateInterface) {
             $this->join = array_merge($this->join, $this->buildJoinFromMig($table, $type));
         } else {
-            if (is_null($where)) {
+            if ($where === null) {
                 throw new ResultException("You need to specify the argument 2 (where) value!", 1);
             }
 
             $prefix = $this->connInst()->getHandler()->getPrefix();
             $arr = $this->separateAlias($table);
             $table = (string)$this->prep($arr['table'], false);
-            $alias = (!is_null($arr['alias'])) ? " {$arr['alias']}" : " $table";
+            $alias = ($arr['alias'] !== null) ? " {$arr['alias']}" : " $table";
 
             if (is_array($where)) {
                 $data = [];
                 foreach ($where as $key => $val) {
                     if (is_array($val)) {
                         foreach ($val as $grpKey => $grpVal) {
-                            if(!($grpVal instanceof AttrInterface)) {
+                            if (!($grpVal instanceof AttrInterface)) {
                                 $grpVal = $this::withAttr($grpVal)->enclose(false);
                             }
                             $this->setWhereData($grpKey, $grpVal, $data);
                         }
                     } else {
-                        if(!($val instanceof AttrInterface)) {
+                        if (!($val instanceof AttrInterface)) {
                             $val = $this::withAttr($val)->enclose(false);
                         }
                         $this->setWhereData($key, $val, $data);
@@ -644,7 +644,7 @@ class DB extends AbstractDB
     public function onDuplicateKey($key = null, ?string $value = null): self
     {
         $this->dupSet = [];
-        if (!is_null($key)) {
+        if ($key !== null) {
             if (is_array($key)) {
                 $this->dupSet = $this->prepArr($key);
             } else {
@@ -690,7 +690,7 @@ class DB extends AbstractDB
      */
     private function buildInsertSet(?array $arr = null): string
     {
-        if (is_null($arr)) {
+        if ($arr === null) {
             $arr = $this->set;
         }
         $columns = array_keys($arr);
@@ -706,7 +706,7 @@ class DB extends AbstractDB
      */
     private function buildUpdateSet(?array $arr = null): string
     {
-        if (is_null($arr)) {
+        if ($arr === null) {
             $arr = $this->set;
         }
         $new = [];
@@ -724,7 +724,7 @@ class DB extends AbstractDB
      */
     private function buildReturning(): string
     {
-        if(!is_null($this->returning) && $this->connInst()->getHandler()->getType() === "postgresql") {
+        if ($this->returning !== null && $this->connInst()->getHandler()->getType() === "postgresql") {
             return " RETURNING $this->returning";
         }
         return "";
@@ -736,7 +736,7 @@ class DB extends AbstractDB
      */
     private function buildDuplicate(): string
     {
-        if (!is_null($this->dupSet)) {
+        if ($this->dupSet !== null) {
             $set = (count($this->dupSet) > 0) ? $this->dupSet : $this->set;
             return " ON DUPLICATE KEY UPDATE " . $this->buildUpdateSet($set);
         }
@@ -752,7 +752,7 @@ class DB extends AbstractDB
     private function buildWhere(string $prefix, ?array $where): string
     {
         $out = "";
-        if (!is_null($where)) {
+        if ($where !== null) {
             $out = " $prefix";
             $index = 0;
             foreach ($where as $array) {
@@ -782,11 +782,11 @@ class DB extends AbstractDB
      */
     private function buildLimit(): string
     {
-        if (is_null($this->limit) && !is_null($this->offset)) {
+        if ($this->limit === null && $this->offset !== null) {
             $this->limit = 1;
         }
-        $offset = (!is_null($this->offset)) ? ",$this->offset" : "";
-        return (!is_null($this->limit)) ? " LIMIT $this->limit$offset" : "";
+        $offset = ($this->offset !== null) ? ",$this->offset" : "";
+        return ($this->limit !== null) ? " LIMIT $this->limit$offset" : "";
     }
 
     /**
@@ -796,12 +796,12 @@ class DB extends AbstractDB
     final protected function build(): void
     {
 
-        if (!is_null($this->method) && method_exists($this, $this->method)) {
+        if ($this->method !== null && method_exists($this, $this->method)) {
 
 
-            $inst = (!is_null($this->dynamic)) ? call_user_func_array($this->dynamic[0], $this->dynamic[1]) : $this->{$this->method}();
+            $inst = ($this->dynamic !== null) ? call_user_func_array($this->dynamic[0], $this->dynamic[1]) : $this->{$this->method}();
 
-            if (is_null($inst->sql)) {
+            if ($inst->sql === null) {
                 throw new ResultException("The Method 1 \"$inst->method\" expect to return a sql " .
                     "building method (like return @select() or @insert()).", 1);
             }
@@ -829,8 +829,8 @@ class DB extends AbstractDB
      */
     public function insertId(?string $column = null): int|string
     {
-        $column = !is_null($column) ? $column : $this->returning;
-        if(!is_null($column)) {
+        $column = $column !== null ? $column : $this->returning;
+        if ($column !== null) {
             return $this->connInst()->DB()->insert_id($column);
         }
         return $this->connInst()->DB()->insert_id();

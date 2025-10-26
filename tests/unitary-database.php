@@ -9,19 +9,68 @@ use MaplePHP\Query\Prepare;
 
 $unit = new Unit();
 
-$unit->add("Unitary test 3333", function () use ($unit) {
+$unit->skip(true)->case("Unitary test 3333", function () use ($unit) {
 
-    //$handler = new MySQLHandler(getenv("DATABASE_HOST"), getenv("DATABASE_USERNAME"), getenv("DATABASE_PASSWORD"), "test");
+    $handler = new MySQLHandler(getenv("DATABASE_HOST"), getenv("DATABASE_USERNAME"), getenv("DATABASE_PASSWORD"), "test");
     //$handler = new PostgreSQLHandler("127.0.0.1", "postgres", "", "postgres");
-    $handler = new SQLiteHandler(__DIR__ . "/database.sqlite");
+    //$handler = new SQLiteHandler(__DIR__ . "/database.sqlite");
     $handler->setPrefix("maple_");
     $db = new DBTest($handler);
 
+    //echo $db->select(["id", "name"], "test")->where('parent', 1)->limit(2)->returning("id");
+    //echo "\n";
 
+     /*
+
+
+     die("ww");
+
+     $test = $db->insert("test")->set([
+        "id" => 11,
+        "name" => "Lorem dwqdqw",
+        "content" => "dwqdwqwdq",
+        "parent" => 0,
+        "status" => 1
+    ])->onDuplicateKey(["content" => "Aight 2"])->returning("id");
+
+    $test = $db->insert("test_category")->set([
+        "cat_id" => 7,
+        "tid" => 11,
+        "name" => "Cat wdwqdq",
+    ])->onDuplicateKey()->returning("id");
+
+    $p1 = $db->table("test")->where("parent", 1);
+    $prepare = new Prepare($p1);
+
+    var_dump($prepare->execute());
+
+
+    die("YE");
+      */
+
+
+
+    /*
+     // Working multi-table delete
+     $test = $db->delete("test")->set([
+        "name" => "dwqdwqwdq",
+        "content" => "dwqdwqwdq 22",
+        "parent" => 0,
+        "status" => 1
+    ])->where("id", 11)->join("test_category_clone", ["tid" => "id"])->returning("id");
+
+    $result = $test->execute();
+    var_dump($result, $test->insertID());
+    die;
+     */
+
+    //echo "\n";
+    //echo $db->update("test")->set(["parent" => 1, "status" => 1])->where('parent', 1)->limit(2)->returning("id");
+
+    //die("EHEH");
 
 
     //$p1 = $db->table("test")->where("parent", 0);
-
 
     /*
      for($i = 0; $i < 80000; $i++) {
@@ -32,11 +81,8 @@ $unit->add("Unitary test 3333", function () use ($unit) {
     }
      */
 
-
-
-
      /*
-     $value = '0';
+    $value = '0';
     $stmt = $db->getConnection()->prepare("SELECT * FROM maple_test WHERE parent=?");
     for($i = 0; $i < 80000; $i++) {
         $stmt->bind_param('s', $value);
@@ -45,7 +91,6 @@ $unit->add("Unitary test 3333", function () use ($unit) {
     }
     $result = $stmt->get_result();
     $stmt->close();
-      */
 
     $startTime = microtime(true);
     $startMemory = memory_get_usage();
@@ -59,26 +104,27 @@ $unit->add("Unitary test 3333", function () use ($unit) {
         }
     });
 
-
     $p1 = $db->table("test")->where("parent", 1);
     $unit->performance(function() use ($db) {
         $p1 = $db->table("test")->where("parent", 1);
         $prepare = new Prepare($p1);
-        for($i = 0; $i < 1000; $i++) {
+        for($i = 0; $i < 2; $i++) {
             $prepare->bind($p1->where("parent", 1));
             $prepare->execute();
         }
     });
+    */
 
-    $p1 = $db->table("test")->where("parent", 1);
     $unit->performance(function() use ($db) {
         $p1 = $db->table("test")->where("parent", 1);
+
         $prepare = new Prepare($p1);
-        for($i = 0; $i < 10000; $i++) {
-            $prepare->bind($p1->where("parent", 1));
-            $prepare->execute();
-        }
+        $prepare->bind($p1->where("parent", 0));
+        print_r($prepare->fetch());
+        die;
     });
+
+
 
 
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query;
 
-use BadMethodCallException;
+use RuntimeException;
 use InvalidArgumentException;
 use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Exceptions\DBValidationException;
@@ -36,13 +36,10 @@ class DBTest implements DBInterface
     protected string $whereAnd = "AND";
     protected int $whereIndex = 0;
     protected ?string $pluck = null;
-    protected string $returning = "";
-    protected array $set = [];
-    protected $sql;
-    protected bool $calRows = false;
+    protected array $selectSet = [];
     private object|array|bool|null $result = null;
 
-    public string|AttrInterface $table;
+    public null|string|AttrInterface $table = null;
     public ?AttrInterface $alias = null;
     public ?array $columns = null;
     public bool $distinct = false;
@@ -57,6 +54,10 @@ class DBTest implements DBInterface
     public bool $explain = false;
     public bool $noCache = false;
     public ?array $union = null;
+    public string $queryType = "select";
+    public array $set = [];
+    public ?array $onDupKey = null;
+    public ?AttrInterface $returning = null;
 
     /**
      * @throws ConnectException
@@ -69,11 +70,29 @@ class DBTest implements DBInterface
         $this->attr = new Attr($this->connection);
     }
 
-    public function getConnection()
+    /**
+     * Get handler
+     * @return HandlerInterface
+     */
+    public function getHandler(): HandlerInterface
+    {
+        return $this->handler;
+    }
+
+    /**
+     * Get handlers connection
+     * @return ConnectInterface
+     */
+    public function getConnection(): ConnectInterface
     {
         return $this->connection;
     }
 
+    /**
+     * Get SQL code
+     * @return string
+     * @throws ConnectException
+     */
     public function __toString(): string
     {
         return $this->sql();
@@ -163,8 +182,63 @@ class DBTest implements DBInterface
         return $inst;
     }
 
+    public function select(array|null $columns, null|string|array|MigrateInterface $table = null): self
+    {
+        $inst = clone $this;
+        $inst->queryType = "select";
+        if ($table !== null) {
+            $inst = $inst->table($table);
+        }
+        if ($inst->table === null) {
+            throw new RuntimeException('You need to specify a database table either in the second argument in this method or with the table method.');
+        }
+        if (is_array($columns)) {
+            $inst = $inst->columns(...$columns);
+        }
+        return $inst;
+    }
+
+    public function insert(null|string|array|MigrateInterface $table = null): self
+    {
+        $inst = clone $this;
+        $inst->queryType = "insert";
+        if ($table !== null) {
+            $inst = $inst->table($table);
+        }
+        if ($inst->table === null) {
+            throw new RuntimeException('You need to specify a database table either in the first argument in this method or with the table method.');
+        }
+        return $inst;
+    }
+
+    public function update(null|string|array|MigrateInterface $table = null): self
+    {
+        $inst = clone $this;
+        $inst->queryType = "update";
+        if ($table !== null) {
+            $inst = $inst->table($table);
+        }
+        if ($inst->table === null) {
+            throw new RuntimeException('You need to specify a database table either in the first argument in this method or with the table method.');
+        }
+        return $inst;
+    }
+
+    public function delete(null|string|array|MigrateInterface $table = null): self
+    {
+        $inst = clone $this;
+        $inst->queryType = "delete";
+        if ($table !== null) {
+            $inst = $inst->table($table);
+        }
+        if ($inst->table === null) {
+            throw new RuntimeException('You need to specify a database table either in the first argument in this method or with the table method.');
+        }
+        return $inst;
+    }
+
     /**
-     * Easy way to create a attr/data type for the query string
+     * Easy way to create an attr/data type for the query string
      *
      * @param mixed $value
      * @param int $type
@@ -172,18 +246,18 @@ class DBTest implements DBInterface
      */
     public function attr(mixed $value, int $type): array|AttrInterface
     {
-        if(is_callable($value)) {
+        if (is_callable($value)) {
             $value = $value($this->attr->withValue($value)->type($type));
         }
-        if(is_array($value)) {
+        if (is_array($value)) {
             return array_map(function ($val) use ($type) {
-                if($val instanceof AttrInterface) {
+                if ($val instanceof AttrInterface) {
                     return $val;
                 }
                 return $this->attr->withValue($val)->type($type);
             }, $value);
         }
-        if($value instanceof AttrInterface) {
+        if ($value instanceof AttrInterface) {
             return $value;
         }
         return $this->attr->withValue($value)->type($type);
@@ -192,10 +266,11 @@ class DBTest implements DBInterface
     /**
      * When SQL query has been triggered then the QueryBuilder should exist
      * @return QueryBuilderInterface
+     * @throws ConnectException
      */
     public function getQueryBuilder(): QueryBuilderInterface
     {
-        if(is_null($this->builder)) {
+        if ($this->builder === null) {
             $this->sql();
             //throw new BadMethodCallException("The query builder can only be called after query has been built.");
         }
@@ -213,7 +288,7 @@ class DBTest implements DBInterface
         $inst = clone $this;
         foreach ($columns as $key => $column) {
             $inst->columns[$key]['alias'] = null;
-            if(is_array($column)) {
+            if (is_array($column)) {
                 $alias = reset($column);
                 $column = key($column);
                 $inst->columns[$key]['alias'] = $this->attr($alias, Attr::COLUMN_TYPE);
@@ -231,7 +306,7 @@ class DBTest implements DBInterface
         return $inst;
     }
 
-    // FIXA - SQL STATEMENT EXISTS
+    // FIX - SQL STATEMENT EXISTS
     // existNot???
     public function exist(callable $func): self
     {
@@ -297,11 +372,11 @@ class DBTest implements DBInterface
     public function where(string|AttrInterface $column, string|int|float|AttrInterface $value, ?string $operator = null): self
     {
         $inst = clone $this;
-        if (!is_null($operator)) {
+        if ($operator !== null) {
             $inst->compare = Helpers::operator($operator);
         }
         $inst->setWhereData($value, $column, $inst->where);
-        $inst->set[] = (string)$value;
+        $inst->selectSet[] = (string)$value;
         return $inst;
     }
 
@@ -315,7 +390,7 @@ class DBTest implements DBInterface
     public function having(string|AttrInterface $column, string|int|float|AttrInterface $value, ?string $operator = null): self
     {
         $inst = clone $this;
-        if (!is_null($operator)) {
+        if ($operator !== null) {
             $inst->compare = Helpers::operator($operator);
         }
         $this->setWhereData($value, $column, $inst->having);
@@ -333,7 +408,7 @@ class DBTest implements DBInterface
         // PREP AT BUILD
         //$col = $this->prep($col, false);
         /*
-        if (!is_null($this->migration) && !$this->migration->columns([(string)$col])) {
+        if ($this->migration !== null && !$this->migration->columns([(string)$col])) {
             throw new DBValidationException($this->migration->getMessage(), 1);
         }
          */
@@ -355,7 +430,7 @@ class DBTest implements DBInterface
     {
         $inst = clone $this;
         $inst->limit = $this->attr($limit, Attr::VALUE_TYPE_NUM);
-        if (!is_null($offset)) {
+        if ($offset !== null) {
             $inst->offset($offset);
         }
         return $inst;
@@ -373,7 +448,6 @@ class DBTest implements DBInterface
         return $inst;
     }
 
-
     /**
      * Add group
      * @param array $columns
@@ -382,7 +456,7 @@ class DBTest implements DBInterface
     public function group(...$columns): self
     {
         /*
-         if (!is_null($this->migration) && !$this->migration->columns($columns)) {
+         if ($this->migration !== null && !$this->migration->columns($columns)) {
             throw new DBValidationException($this->migration->getMessage(), 1);
         }
          */
@@ -410,8 +484,54 @@ class DBTest implements DBInterface
     public function returning(string $column): self
     {
         $inst = clone $this;
-        $inst->returning = $column;
+        $inst->returning = $this->attr($column, Attr::COLUMN_TYPE);
         return $inst;
+    }
+
+    /**
+     * Update On Duplicate Key instead of insert
+     * @param array|null $set
+     * @return $this
+     */
+    public function onDuplicateKey(?array $set = null): self
+    {
+        $inst = clone $this;
+        $inst->onDupKey = [];
+        if (is_array($set)) {
+            foreach ($set as $column => $val) {
+                $inst->onDupKey[] = [
+                    'column' => $this->attr($column, Attr::COLUMN_TYPE),
+                    'value' => $this->attr($val, Attr::VALUE_TYPE_STR)
+                ];
+            }
+        }
+        return $inst;
+    }
+
+
+    /**
+     * Create INSERT or UPDATE set Mysql input to insert
+     * @param string|array|AttrInterface $key (string) "name" OR (array) ["id" => 1, "name" => "Lorem ipsum"]
+     * @param string|array|AttrInterface|null $value If key is string then value will pair with key "Lorem ipsum"
+     * @return self
+     */
+    public function set(string|array|AttrInterface $key, null|string|array|AttrInterface $value = null): self
+    {
+        if (is_array($key)) {
+            foreach ($key as $column => $val) {
+                $this->set[] = [
+                    'column' => $this->attr($column, Attr::COLUMN_TYPE),
+                    'value' => $this->attr($val, Attr::VALUE_TYPE_STR)
+                ];
+            }
+
+        } else {
+            $this->set[] = [
+                'column' => $this->attr($key, Attr::COLUMN_TYPE),
+                'value' => $this->attr($value, Attr::VALUE_TYPE_STR)
+            ];
+        }
+        return $this;
     }
 
     /**
@@ -424,7 +544,7 @@ class DBTest implements DBInterface
      */
     public function join(
         string|array|MigrateInterface $table,
-        string|array $where = null,
+        null|string|array $where = null,
         array $sprint = [],
         string $type = "INNER"
     ): self {
@@ -436,7 +556,7 @@ class DBTest implements DBInterface
         } else {
 
             /*
-             * if (is_null($where)) {
+             * if ($where === null) {
                 throw new ResultException("You need to specify the argument 2 (where) value!", 1);
             }
              */
@@ -474,23 +594,23 @@ class DBTest implements DBInterface
 
     /**
      * Union result
-     * @param  DBInterface  $inst
-     * @param  bool         $allowDuplicate  UNION by default selects only distinct values.
+     * @param DBInterface|string $dbInst
+     * @param bool $allowDuplicate UNION by default selects only distinct values.
      *                                       Use UNION ALL to also select duplicate values!
-     * @mixin AbstractDB
      * @return self
+     * @mixin AbstractDB
      */
     public function union(DBInterface|string $dbInst, bool $allowDuplicate = false): self
     {
         $inst = clone $this;
 
 
-        if(!is_null($inst->order)) {
-            throw new \RuntimeException("You need to move your ORDER BY to the last UNION statement!");
+        if ($inst->order !== null) {
+            throw new RuntimeException("You need to move your ORDER BY to the last UNION statement!");
         }
 
-        if(!is_null($inst->limit)) {
-            throw new \RuntimeException("You need to move your ORDER BY to the last UNION statement!");
+        if ($inst->limit !== null) {
+            throw new RuntimeException("You need to move your ORDER BY to the last UNION statement!");
         }
 
         $inst->union[] = [
@@ -500,6 +620,10 @@ class DBTest implements DBInterface
         return $inst;
     }
 
+    /**
+     * Tell builder that it should build a prepare statement
+     * @return $this
+     */
     public function prepare(): self
     {
         $inst = clone $this;
@@ -507,12 +631,15 @@ class DBTest implements DBInterface
         return $this;
     }
 
-
+    /**
+     * Get SQL code
+     * @return string
+     * @throws ConnectException
+     */
     public function sql(): string
     {
         $this->builder = new QueryBuilder($this);
-        $sql = $this->builder->sql();
-        return $sql;
+        return $this->builder->sql();
     }
 
     /**
@@ -523,13 +650,13 @@ class DBTest implements DBInterface
      */
     final protected function setWhereData(string|int|float|AttrInterface $val, string|AttrInterface $key, ?array &$data): void
     {
-        if (is_null($data)) {
+        if ($data === null) {
             $data = [];
         }
         /*
         $key = (string)$this->prep($key, false);
         $val = $this->prep($val);
-        if (!is_null($this->migration) && !$this->migration->where($key, $val)) {
+        if ($this->migration !== null && !$this->migration->where($key, $val)) {
             throw new DBValidationException($this->migration->getMessage(), 1);
         }
          */
@@ -553,7 +680,7 @@ class DBTest implements DBInterface
     public function whereBind(callable $call): self
     {
         $inst = clone $this;
-        if (!is_null($inst->where)) {
+        if ($inst->where !== null) {
             $inst->whereIndex++;
         }
         $inst->resetWhere();
@@ -575,7 +702,6 @@ class DBTest implements DBInterface
         $this->compare = "=";
     }
 
-
     /**
      * Query result
      * @param string|self $sql
@@ -588,7 +714,7 @@ class DBTest implements DBInterface
     {
         $query = new Query($this->connection, $sql);
         $query->setPluck($this->pluck);
-        if (!is_null($method)) {
+        if ($method !== null) {
             if (method_exists($query, $method)) {
                 return call_user_func_array([$query, $method], $args);
             }
@@ -600,16 +726,25 @@ class DBTest implements DBInterface
     /**
      * Execute
      * @return mixed
+     * @throws ConnectException
      * @throws ResultException
      */
-    function execute()
+    public function execute(): mixed
     {
-        if(is_null($this->result)) {
+        if ($this->result === null) {
             $this->result = $this->query($this->sql())->execute();
         }
         return $this->result;
     }
 
+    /**
+     * Get insert iD
+     * @return int
+     */
+    public function insertID(): int
+    {
+        return $this->getConnection()->insert_id();
+    }
 
     /**
     MIGRATION BUILDERS
@@ -659,7 +794,7 @@ class DBTest implements DBInterface
      */
     final protected function getMainFKData(): array
     {
-        if (is_null($this->fkData)) {
+        if ($this->fkData === null) {
             $this->fkData = [];
             foreach ($this->mig->getMig()->getData() as $col => $row) {
                 if (isset($row['fk'])) {
@@ -671,5 +806,4 @@ class DBTest implements DBInterface
         }
         return $this->fkData;
     }
-
 }

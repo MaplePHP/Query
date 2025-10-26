@@ -39,6 +39,11 @@ class Query
         return $this;
     }
 
+    public function sql(): string
+    {
+        return $this->sql;
+    }
+
     /**
      * Execute query result
      * @return object|array|bool
@@ -46,7 +51,7 @@ class Query
      */
     public function execute(): object|array|bool
     {
-        if(!is_null($this->bind)) {
+        if ($this->bind !== null) {
             return $this->executePrepare();
         }
 
@@ -63,13 +68,16 @@ class Query
      */
     public function executePrepare(): object|array|bool
     {
-        if(is_null($this->bind)) {
+        if ($this->bind === null) {
             throw new BadMethodCallException("You need to bind parameters first to execute a prepare statement!");
         }
         foreach ($this->bind as $bind) {
             $ref = $bind->getQueryBuilder()->getSet();
+
+            print_r((string)$ref[0]);
+            die;
             $length = count($ref);
-            if($length > 0) {
+            if ($length > 0) {
                 $this->stmt->getStmt()->bind_param($this->stmt->getKeys($length), ...$ref);
             }
             $this->stmt->getStmt()->execute();
@@ -98,7 +106,7 @@ class Query
         $result = $this->execute();
         if (is_object($result) && $result->num_rows > 0) {
             $obj = $result->fetch_object($class, $constructor_args);
-            if(!is_null($this->pluck)) {
+            if ($this->pluck !== null) {
                 $obj = $obj->{$this->pluck};
             }
             return $obj;
@@ -119,7 +127,7 @@ class Query
         $arr = [];
         $result = $this->execute();
         if (is_array($result)) {
-            foreach($result as $resultItem) {
+            foreach ($result as $resultItem) {
                 $arr = array_merge($arr, $this->fetchItem($resultItem, $callback, $class, $constructor_args));
             }
         } else {
@@ -144,14 +152,14 @@ class Query
         if (is_object($result) && $result->num_rows > 0) {
             while ($row = $result->fetch_object($class, $constructor_args)) {
 
-                if(!is_null($this->pluck)) {
+                if ($this->pluck !== null) {
                     $row = $row->{$this->pluck};
                 }
 
                 if ($callback) {
                     $select = $callback($row, $key);
                 }
-                $data = ((!is_null($select)) ? $select : $key);
+                $data = (($select !== null) ? $select : $key);
                 if (is_array($data)) {
                     if (!is_array($select)) {
                         throw new InvalidArgumentException("The return value of the callable needs to be an array!", 1);

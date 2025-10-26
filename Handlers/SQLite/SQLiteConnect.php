@@ -48,7 +48,7 @@ class SQLiteConnect implements ConnectInterface
     public function query(string $query, int $result_mode = 0): SQLiteResult|false
     {
         $result = new SQLiteResult($this->connection);
-        if($this->query = $result->query($query)) {
+        if ($this->query = $result->query($query)) {
             return $this->query;
         }
         $this->error = $this->connection->lastErrorMsg();

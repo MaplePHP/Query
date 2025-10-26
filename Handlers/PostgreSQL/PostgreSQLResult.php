@@ -21,7 +21,7 @@ class PostgreSQLResult implements ResultInterface
     public function __construct(Connection $connection, ?Result $query = null)
     {
         $this->connection = $connection;
-        if(!is_null($query)) {
+        if ($query !== null) {
             $this->query = $query;
             $this->num_rows = pg_affected_rows($this->query);
         }
@@ -34,7 +34,7 @@ class PostgreSQLResult implements ResultInterface
      */
     public function query($sql): self|false
     {
-        if($this->query = pg_query($this->connection, $sql)) {
+        if ($this->query = pg_query($this->connection, $sql)) {
             $this->num_rows = pg_affected_rows($this->query);
             return $this;
         }

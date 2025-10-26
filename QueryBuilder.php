@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Query SQL string Builder
  *
@@ -11,7 +12,8 @@ declare(strict_types=1);
 
 namespace MaplePHP\Query;
 
-use http\Exception\RuntimeException;
+use RuntimeException;
+use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
 use MaplePHP\Query\Interfaces\QueryBuilderInterface;
@@ -22,6 +24,7 @@ class QueryBuilder implements QueryBuilderInterface
 {
     private DBInterface $db;
     private array $set = [];
+    private ?array $linkedTables = null;
 
     public function __construct(DBInterface $sql)
     {
@@ -33,6 +36,11 @@ class QueryBuilder implements QueryBuilderInterface
         return $this->sql();
     }
 
+    /**
+     * Main select builder
+     * @return string
+     * @throws ConnectException
+     */
     public function select(): string
     {
         $explain = $this->getExplain();
@@ -51,18 +59,78 @@ class QueryBuilder implements QueryBuilderInterface
             $this->getTable() . "$join$where$group$having$order$limit$union";
     }
 
+    /**
+     * Main insert builder
+     * @return string
+     * @throws ConnectException
+     */
+    public function insert(): string
+    {
+        $explain = $this->getExplain();
+        $set = $this->buildSet();
+        $duplicate = $this->buildDuplicate();
+        $returning = $this->buildReturning();
+
+        return "{$explain}INSERT INTO " .
+            $this->db->table . "$set$duplicate$returning";
+    }
+
+    /**
+     * Main update builder
+     * @return string
+     * @throws ConnectException
+     */
+    public function update(): string
+    {
+        $explain = $this->getExplain();
+        $join = $this->getJoin();
+        $set = $this->buildSet();
+        $where = $this->getWhere("WHERE", $this->db->where);
+        $order = $this->getOrder();
+        $limit = $this->getLimit();
+        $returning = $this->buildReturning();
+        return "{$explain}UPDATE " .
+            $this->getTable() . "$join SET$set$where$order$limit$returning";
+    }
+
+    /**
+     * Main delete builder
+     * @return string
+     * @throws ConnectException
+     */
+    public function delete(): string
+    {
+        $explain = $this->getExplain();
+        $join = $this->getJoin();
+        $linkedTables = $this->buildLinkedTables();
+        $where = $this->getWhere("WHERE", $this->db->where);
+        $limit = $this->getLimit();
+        $returning = $this->buildReturning();
+        return "{$explain}DELETE$linkedTables FROM " .
+            $this->getTable() . "$join$where$limit$returning";
+    }
+
     public function getTable(): string
     {
+        if ($this->db->table === null) {
+            throw new RuntimeException("Could not generate any SQL code because the database table is missing!");
+        }
         return Helpers::addAlias($this->db->table, $this->db->alias);
     }
 
     /**
      * Get sql code
      * @return string
+     * @throws ConnectException
      */
     public function sql(): string
     {
-        return $this->select();
+        return match ($this->db->queryType) {
+            "insert" => $this->insert(),
+            "update" => $this->update(),
+            "delete" => $this->delete(),
+            default => $this->select()
+        };
     }
 
     /**
@@ -85,6 +153,7 @@ class QueryBuilder implements QueryBuilderInterface
 
     /**
      * The server does not use the query cache.
+     * DEPRECATED
      * @return string
      */
     protected function getNoCache(): string
@@ -98,12 +167,12 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getColumns(): string
     {
-        if(is_null($this->db->columns)) {
+        if ($this->db->columns === null) {
             return "*";
         }
         $create = [];
         $columns = $this->db->columns;
-        foreach($columns as $row) {
+        foreach ($columns as $row) {
             $create[] = Helpers::addAlias($row['column'], $row['alias'], "AS");
         }
         return implode(",", $create);
@@ -115,7 +184,7 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getOrder(): string
     {
-        return (!is_null($this->db->order)) ?
+        return ($this->db->order !== null) ?
             " ORDER BY " . implode(",", Helpers::getOrderBy($this->db->order)) : "";
     }
 
@@ -125,7 +194,7 @@ class QueryBuilder implements QueryBuilderInterface
      */
     protected function getGroup(): string
     {
-        return (!is_null($this->db->group)) ? " GROUP BY " . implode(",", $this->db->group) : "";
+        return ($this->db->group !== null) ? " GROUP BY " . implode(",", $this->db->group) : "";
     }
 
     /**
@@ -138,7 +207,7 @@ class QueryBuilder implements QueryBuilderInterface
     protected function getWhere(string $prefix, ?array $where, array &$set = []): string
     {
         $out = "";
-        if (!is_null($where)) {
+        if ($where !== null) {
             $out = " $prefix";
             $index = 0;
             foreach ($where as $array) {
@@ -160,10 +229,12 @@ class QueryBuilder implements QueryBuilderInterface
     {
         $join = "";
         $data = $this->db->join;
+        $this->linkedTables = [];
         foreach ($data as $row) {
             $table = Helpers::addAlias($row['table'], $row['alias']);
             $where = $this->getWhere("ON", $row['whereData']);
             $join .= " ". sprintf("%s JOIN %s%s", $row['type'], $table, $where);
+            $this->linkedTables[] = $row['alias'];
         }
         return $join;
     }
@@ -175,12 +246,12 @@ class QueryBuilder implements QueryBuilderInterface
     protected function getLimit(): string
     {
         $limit = $this->db->limit;
-        if (is_null($limit) && !is_null($this->db->offset)) {
+        if ($limit === null && $this->db->offset !== null) {
             $limit = 1;
         }
         $limit = $this->getAttrValue($limit);
-        $offset = (!is_null($this->db->offset)) ? "," . $this->getAttrValue($this->db->offset) : "";
-        return (!is_null($limit)) ? " LIMIT $limit $offset" : "";
+        $offset = ($this->db->offset !== null) ? "," . $this->getAttrValue($this->db->offset) : "";
+        return ($limit !== null) ? " LIMIT $limit $offset" : "";
     }
 
     /**
@@ -205,7 +276,7 @@ class QueryBuilder implements QueryBuilderInterface
                         }
 
                         $value = $this->getAttrValue($row['value']);
-                        $out .= "{$row['column']} {$row['operator']} {$value} ";
+                        $out .= "{$row['column']} {$row['operator']} $value ";
                         $set[] = $row['value'];
                         $count++;
                     }
@@ -221,23 +292,123 @@ class QueryBuilder implements QueryBuilderInterface
         return rtrim($out, " ");
     }
 
+    /**
+     * Build Update and Insert set data
+     * @return string
+     */
+    public function buildSet(): string
+    {
+        return " " . match ($this->db->queryType) {
+            "insert" => $this->buildInsertSet($this->db->set),
+            "update" => $this->buildUpdateSet($this->db->set),
+            default => ""
+        };
+    }
+
+    /**
+     * Build on insert set sql string part
+     * @param array $set
+     * @return string
+     */
+    protected function buildInsertSet(array $set): string
+    {
+
+        $new = [];
+        foreach ($set as $row) {
+            $value = $this->getAttrValue($row['value']);
+            $new[(string)$row['column']] = (string)$value;
+        }
+
+        if (count($new) <= 0) {
+            throw new RuntimeException("There is nothing to insert, you need to specify a SET to insert.");
+        }
+        $columns = array_keys($new);
+        $columns = implode(",", $columns);
+        $values = implode(",", $new);
+        return "($columns) VALUES ($values)";
+    }
+
+    /**
+     * Build on update set sql string part
+     * @param array $set
+     * @return string
+     */
+    protected function buildUpdateSet(array $set): string
+    {
+        $new = [];
+        foreach ($set as $key => $row) {
+            $value = $this->getAttrValue($row['value']);
+            $new[] = "{$row['column']} = $value";
+        }
+        if (count($new) <= 0) {
+            throw new RuntimeException("There is nothing to update, you need to specify a SET to update.");
+        }
+        return implode(",", $new);
+    }
+
+    /**
+     * Build on duplicate sql string part
+     * @return string
+     */
+    private function buildDuplicate(): string
+    {
+        if (is_array($this->db->onDupKey)) {
+            $set = (count($this->db->onDupKey) > 0) ? $this->db->onDupKey : $this->db->set;
+            return " ON DUPLICATE KEY UPDATE " . $this->buildUpdateSet($set);
+        }
+        return "";
+    }
+
+    /**
+     * Will build a returning value that can be fetched with insert id
+     * This is a PostgreSQL specific function.
+     * @return string
+     * @throws ConnectException
+     */
+    private function buildReturning(): string
+    {
+        if ($this->db->returning !== null && $this->db->getHandler()->getType() === "postgresql") {
+            return " RETURNING {$this->db->returning}";
+        }
+        return "";
+    }
 
     /**
      * Get Union sql
      * @return string
+     * @throws ConnectException
      */
     public function getUnion(): string
     {
         $union = $this->db->union;
-        if(!is_null($union)) {
+        if ($union !== null) {
 
             $sql = "";
-            foreach($union as $row) {
+            foreach ($union as $row) {
                 $inst = new self($row['inst']);
                 $sql .= "  UNION " . $inst->sql();
             }
 
             return $sql;
+        }
+        return "";
+    }
+
+    /**
+     * Find all table in all joins and main query
+     * @return string
+     */
+    public function buildLinkedTables(): string
+    {
+        if ($this->linkedTables === null) {
+            throw new \BadMethodCallException("You need to call buildJoin method before this method.");
+        }
+
+        if (count($this->linkedTables) > 0) {
+            $columns = $this->linkedTables;
+            array_unshift($columns, $this->db->alias);
+
+            return " " . implode(",", $columns);
         }
         return "";
     }
@@ -249,14 +420,14 @@ class QueryBuilder implements QueryBuilderInterface
      */
     public function getAttrValue($value): ?string
     {
-        if($this->db->prepare) {
-            if($value instanceof AttrInterface && ($value->isType(Attr::VALUE_TYPE) ||
+        if ($this->db->prepare) {
+            if ($value instanceof AttrInterface && ($value->isType(Attr::VALUE_TYPE) ||
                     $value->isType(Attr::VALUE_TYPE_NUM) || $value->isType(Attr::VALUE_TYPE_STR))) {
                 $this->set[] = $value->type(Attr::RAW_TYPE);
                 return "?";
             }
         }
-        return is_null($value) ? null : (string)$value;
+        return $value === null ? null : (string)$value;
     }
 
     /**

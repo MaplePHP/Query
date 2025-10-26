@@ -86,6 +86,6 @@ interface HandlerInterface
      * @param  object|null &$db
      * @return array
      */
-    public function multiQuery(string $sql, object &$db = null): array;
+    public function multiQuery(string $sql, ?object &$db = null): array;
 
 }

@@ -135,7 +135,7 @@ class PostgreSQLHandler implements HandlerInterface
      */
     public function close(): void
     {
-        if(!pg_close($this->connection->getConnection())) {
+        if (!pg_close($this->connection->getConnection())) {
             throw new ConnectException("Failed to close pgsql connection:" . pg_last_error($this->connection->getConnection()), 1);
         }
     }
@@ -157,7 +157,7 @@ class PostgreSQLHandler implements HandlerInterface
      * @param  object|null &$db
      * @return array
      */
-    public function multiQuery(string $sql, object &$db = null): array
+    public function multiQuery(string $sql, ?object &$db = null): array
     {
         $count = 0;
         $err = [];
