@@ -1,28 +1,31 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers\SQLite;
 
-use MaplePHP\DTO\DynamicDataAbstract;
+use MaplePHP\Query\Interfaces\ResultInterface;
 use ReflectionClass;
 use ReflectionException;
 use SQLite3;
 use SQLite3Result;
 
-class SQLiteResult
+class SQLiteResult implements ResultInterface
 {
-
-    public $index = -1;
     public int|string $num_rows = 0;
-    public array|bool $rows = false;
-    public array|bool $rowsObj = false;
-
+    private int $index = -1;
+    private array|bool $rows = false;
+    private array|bool $rowsObj = false;
     private SQLite3 $connection;
-    private SQLite3Result|false $query = false;
+    private SQLite3Result|false $query;
 
-    function __construct(SQLite3 $connection)
+    public function __construct(SQLite3 $connection, SQLite3Result|false $query = false)
     {
         $this->connection = $connection;
+        $this->query = $query;
+        if ($this->query !== false) {
+            $this->preFetchData();
+        }
     }
 
     /**
@@ -32,7 +35,7 @@ class SQLiteResult
      */
     public function query($sql): self|false
     {
-        if($this->query = $this->connection->query($sql)) {
+        if ($this->query = $this->connection->query($sql)) {
             $this->preFetchData();
             return $this;
         }
@@ -48,7 +51,7 @@ class SQLiteResult
      */
     public function fetch_object(string $class = "stdClass", array $constructor_args = []): object|false|null
     {
-        if(!$this->startIndex()) {
+        if (!$this->startIndex()) {
             return false;
         }
         $data = $this->rowsObj[$this->index] ?? false;
@@ -56,7 +59,6 @@ class SQLiteResult
             $data = $this->bindToClass($data, $class, $constructor_args);
         }
         $this->endIndex();
-
         return $data;
     }
 
@@ -67,10 +69,10 @@ class SQLiteResult
      */
     public function fetch_array(int $mode = PGSQL_BOTH): array|false|null
     {
-        if($mode !== SQLITE3_ASSOC) {
+        if ($mode !== SQLITE3_ASSOC) {
             return $this->query->fetchArray($mode);
         }
-        if(!$this->startIndex()) {
+        if (!$this->startIndex()) {
             return false;
         }
         $data = $this->rows[$this->index] ?? false;
@@ -85,7 +87,7 @@ class SQLiteResult
      */
     public function fetch_assoc(): array|false|null
     {
-        if(!$this->startIndex()) {
+        if (!$this->startIndex()) {
             return false;
         }
         $data = $this->rows[$this->index] ?? false;
@@ -137,14 +139,14 @@ class SQLiteResult
     {
         $this->rowsObj = $this->rows = [];
         $this->num_rows = 0;
-        $obj = $arr = array();
+        $obj = $arr = [];
         while ($row = $this->query->fetchArray(SQLITE3_ASSOC)) {
             $arr[] = $row;
             $obj[] = (object)$row;
             $this->num_rows++;
         }
 
-        if(count($arr) > 0) {
+        if (count($arr) > 0) {
             $this->rows = $arr;
             $this->rowsObj = $obj;
         }
@@ -156,7 +158,7 @@ class SQLiteResult
      */
     protected function startIndex(): bool
     {
-        if(($this->rows === false)) {
+        if (($this->rows === false)) {
             return false;
         }
         $this->index++;
@@ -169,7 +171,7 @@ class SQLiteResult
      */
     protected function endIndex(): void
     {
-        if($this->index >= $this->num_rows) {
+        if ($this->index >= $this->num_rows) {
             $this->index = -1;
         }
     }
@@ -182,12 +184,12 @@ class SQLiteResult
      * @return object|string|null
      * @throws ReflectionException
      */
-    protected function bindToClass(object|array $data, string $class, array $constructor_args = []): object|string|null
+    final protected function bindToClass(object|array $data, string $class, array $constructor_args = []): object|string|null
     {
         $reflection = new ReflectionClass($class);
         $object = $reflection->newInstanceArgs($constructor_args);
         foreach ($data as $key => $value) {
-            if (property_exists($object, $key) && is_null($object->{$key})) {
+            if (property_exists($object, $key) && $object->{$key} === null) {
                 $object->{$key} = $value;
             }
         }

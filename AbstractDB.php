@@ -1,15 +1,17 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query;
 
 use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Interfaces\ConnectInterface;
 use MaplePHP\Query\Utility\Attr;
 use MaplePHP\Query\Interfaces\AttrInterface;
 use MaplePHP\Query\Interfaces\MigrateInterface;
 use MaplePHP\Query\Interfaces\DBInterface;
 use MaplePHP\Query\Exceptions\DBValidationException;
-use MaplePHP\Query\Exceptions\DBQueryException;
+use MaplePHP\Query\Exceptions\ResultException;
 
 /**
  * @psalm-taint-source
@@ -32,7 +34,7 @@ abstract class AbstractDB implements DBInterface
     protected $whereProtocol = [];
     protected $fkData;
     protected $joinedTables;
-
+    protected ?string $pluck = null;
     protected string $connKey = "default";
 
     /**
@@ -85,43 +87,58 @@ abstract class AbstractDB implements DBInterface
      */
     abstract protected function showView(): self;
 
-    public function setConnKey(?string $key) {
-        $this->connKey = is_null($key) ? "default" : $key;
+
+    /**
+     * Set connection
+     * @param string|null $key
+     * @return void
+     */
+    public function setConnKey(?string $key): void
+    {
+        $this->connKey = $key === null ? "default" : $key;
     }
-    
-    public function connInst() {
+
+    /**
+     * @throws ConnectException
+     */
+    public function connInst(): Connect
+    {
         return Connect::getInstance($this->connKey);
     }
-    
+
     /**
      * Access Mysql DB connection
-     * @return \mysqli
+     * @return ConnectInterface
+     * @throws ConnectException
      */
-    public function connect()
+    public function connect(): ConnectInterface
     {
         return $this->connInst()->DB();
     }
 
     /**
      * Get current instance Table name with prefix attached
+     * @param bool $withAlias
      * @return string
+     * @throws ConnectException
      */
     public function getTable(bool $withAlias = false): string
     {
-        $alias = ($withAlias && !is_null($this->alias)) ? " {$this->alias}" : "";
+        $alias = ($withAlias && $this->alias !== null) ? " $this->alias" : "";
         return $this->connInst()->getHandler()->getPrefix() . $this->table . $alias;
     }
 
     /**
      * Get current instance Columns
      * @return array
+     * @throws DBValidationException
      */
     public function getColumns(): array
     {
-        if(is_string($this->columns)) {
+        if (is_string($this->columns)) {
             return explode(",", $this->columns);
         }
-        if (!is_null($this->mig) && !$this->mig->columns($this->columns)) {
+        if ($this->mig !== null && !$this->mig->columns($this->columns)) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
         return $this->columns;
@@ -136,7 +153,6 @@ abstract class AbstractDB implements DBInterface
     {
         return new Attr($value);
     }
-
 
     /**
      * Will reset Where input
@@ -191,17 +207,18 @@ abstract class AbstractDB implements DBInterface
     }
 
     /**
-     * Sperate Alias
-     * @param  string|array  $data
+     * Separate Alias
+     * @param string|array $data
      * @return array
+     * @throws ResultException
      */
-    final protected function sperateAlias(string|array $data): array
+    final protected function separateAlias(string|array $data): array
     {
         $alias = null;
         $table = $data;
         if (is_array($data)) {
             if (count($data) !== 2) {
-                throw new DBQueryException("If you specify Table as array then it should look " .
+                throw new ResultException("If you specify Table as array then it should look " .
                     "like this [TABLE_NAME, ALIAS]", 1);
             }
             $alias = array_pop($data);
@@ -211,29 +228,30 @@ abstract class AbstractDB implements DBInterface
     }
 
     /**
-     * Propegate where data structure
-     * @param string|AttrInterface           $key
+     * Propagate where data structure
+     * @param string|AttrInterface $key
      * @param string|int|float|AttrInterface $val
      * @param array|null                     &$data static value
+     * @throws DBValidationException
      */
     final protected function setWhereData(string|AttrInterface $key, string|int|float|AttrInterface $val, ?array &$data): void
     {
-        if (is_null($data)) {
-            $data = array();
+        if ($data === null) {
+            $data = [];
         }
         $key = (string)$this->prep($key, false);
         $val = $this->prep($val);
 
-        if (!is_null($this->mig) && !$this->mig->where($key, $val)) {
+        if ($this->mig !== null && !$this->mig->where($key, $val)) {
             throw new DBValidationException($this->mig->getMessage(), 1);
         }
 
-        //$data[$this->whereIndex][$this->whereAnd][$this->compare][$key][] = $val;
         $data[$this->whereIndex][$this->whereAnd][$key][] = [
             "not" => $this->whereNot,
             "operator" => $this->compare,
             "value" => $val
         ];
+        $this->whereNot = null;
 
         $this->whereProtocol[$key][] = $val;
         $this->resetWhere();
@@ -251,35 +269,34 @@ abstract class AbstractDB implements DBInterface
         foreach ($array as $key => $arr) {
             foreach ($arr as $col => $a) {
                 if (is_array($a)) {
-                    foreach ($a as $int => $row) {
+                    foreach ($a as $row) {
                         if ($count > 0) {
-                            $out .= "{$key} ";
+                            $out .= "$key ";
                         }
                         if ($row['not'] === true) {
                             $out .= "NOT ";
                         }
-                        $out .= "{$col} {$row['operator']} {$row['value']} ";
+                        $out .= "$col {$row['operator']} {$row['value']} ";
                         $count++;
                     }
-                    
+
                 } else {
-                    $out .= "{$key} {$a} ";
+                    $out .= ($count) > 0 ? "$key $a " : $a;
                     $count++;
                 }
             }
         }
-
         return $out;
     }
-    
+
     /**
      * Get the Main FK data protocol
      * @return array
      */
     final protected function getMainFKData(): array
     {
-        if (is_null($this->fkData)) {
-            $this->fkData = array();
+        if ($this->fkData === null) {
+            $this->fkData = [];
             foreach ($this->mig->getMig()->getData() as $col => $row) {
                 if (isset($row['fk'])) {
                     foreach ($row['fk'] as $a) {
@@ -315,7 +332,7 @@ abstract class AbstractDB implements DBInterface
      */
     final protected function prepArr(array $arr, bool $enclose = true): array
     {
-        $new = array();
+        $new = [];
         foreach ($arr as $pKey => $pVal) {
             $key = (string)$this->prep($pKey, false);
             $new[$key] = (string)$this->prep($pVal, $enclose);
@@ -324,12 +341,12 @@ abstract class AbstractDB implements DBInterface
     }
 
     /**
-     * Use vsprintf to mysql prep/protect input in string. Prep string values needs to be eclosed manually
+     * Use vsprintf to mysql prep/protect input in string. Prep string values needs to be enclosed manually
      * @param  string    $str     SQL string example: (id = %d AND permalink = '%s')
      * @param  array     $arr     Mysql prep values
      * @return string
      */
-    final protected function sprint(string $str, array $arr = array()): string
+    final protected function sprint(string $str, array $arr = []): string
     {
         return vsprintf($str, $this->prepArr($arr, false));
     }
@@ -351,7 +368,8 @@ abstract class AbstractDB implements DBInterface
     }
 
     /**
-     * Will extract camle case to array
+     * MOVE TO DTO ARR
+     * Will extract camelcase to array
      * @param  string $value string value with possible camel cases
      * @return array
      */
@@ -369,7 +387,7 @@ abstract class AbstractDB implements DBInterface
      */
     final protected function buildJoinFromMig(MigrateInterface $mig, string $type): array
     {
-        $joinArr = array();
+        $joinArr = [];
         $prefix = $this->connInst()->getHandler()->getPrefix();
         $main = $this->getMainFKData();
         $data = $mig->getData();
@@ -403,10 +421,11 @@ abstract class AbstractDB implements DBInterface
     /**
      * Build on YB to col sql string part
      * @return string|null
+     * @throws ConnectException
      */
     protected function getAllQueryTables(): ?string
     {
-        if (!is_null($this->joinedTables)) {
+        if ($this->joinedTables !== null) {
             $columns = $this->joinedTables;
             array_unshift($columns, $this->getTable());
             return implode(",", $columns);
@@ -420,17 +439,17 @@ abstract class AbstractDB implements DBInterface
      * @param string|null $method
      * @param array $args
      * @return array|object|bool|string
-     * @throws DBQueryException
+     * @throws ResultException|ConnectException
      */
     final protected function query(string|self $sql, ?string $method = null, array $args = []): array|object|bool|string
     {
         $query = new Query($sql, $this->connInst());
         $query->setPluck($this->pluck);
-        if (!is_null($method)) {
+        if ($method !== null) {
             if (method_exists($query, $method)) {
                 return call_user_func_array([$query, $method], $args);
             }
-            throw new DBQueryException("Method \"$method\" does not exists!", 1);
+            throw new ResultException("Method \"$method\" does not exists!", 1);
         }
         return $query;
     }

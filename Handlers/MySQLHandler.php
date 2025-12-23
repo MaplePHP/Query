@@ -1,10 +1,13 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers;
 
 use InvalidArgumentException;
 use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Handlers\MySQL\MySQLConnect;
+use MaplePHP\Query\Interfaces\ConnectInterface;
 use MaplePHP\Query\Interfaces\HandlerInterface;
 use mysqli;
 
@@ -18,7 +21,7 @@ class MySQLHandler implements HandlerInterface
     private string $charset = "utf8mb4";
     private int $port;
     private string $prefix = "";
-    private ?mysqli $connection;
+    private ?mysqli $connection = null;
 
     public function __construct(string $server, string $user, string $pass, string $dbname, int $port = 3306)
     {
@@ -39,7 +42,7 @@ class MySQLHandler implements HandlerInterface
     }
 
     /**
-     * Set MySqli charset
+     * Set MySql charset
      * @param string $charset
      */
     public function setCharset(string $charset): void
@@ -65,17 +68,17 @@ class MySQLHandler implements HandlerInterface
      */
     public function hasConnection(): bool
     {
-        return (!is_null($this->connection) && $this->connection->ping());
+        return ($this->connection !== null && $this->connection->ping());
     }
 
     /**
      * Connect to database
-     * @return mysqli
+     * @return ConnectInterface
      * @throws ConnectException
      */
-    public function execute(): mysqli
+    public function execute(): ConnectInterface
     {
-        $this->connection = new mysqli($this->server, $this->user, $this->pass, $this->dbname, $this->port);
+        $this->connection = new MySQLConnect($this->server, $this->user, $this->pass, $this->dbname, $this->port);
         if (mysqli_connect_error()) {
             throw new ConnectException('Failed to connect to MySQL: ' . mysqli_connect_error(), 1);
         }
@@ -150,10 +153,10 @@ class MySQLHandler implements HandlerInterface
      * @param  object|null &$db
      * @return array
      */
-    public function multiQuery(string $sql, object &$db = null): array
+    public function multiQuery(string $sql, ?object &$db = null): array
     {
         $count = 0;
-        $err = array();
+        $err = [];
         $db = $this->connection;
         if (mysqli_multi_query($db, $sql)) {
             do {
@@ -175,15 +178,4 @@ class MySQLHandler implements HandlerInterface
         }
         return $err;
     }
-
-    /**
-     * Start Transaction
-     * @return mysqli
-     */
-    public function transaction(): mysqli
-    {
-        $this->connection->begin_transaction();
-        return $this->connection;
-    }
-
 }

@@ -5,27 +5,27 @@ namespace MaplePHP\Query\Handlers\SQLite;
 use Exception;
 use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Interfaces\ConnectInterface;
+use MaplePHP\Query\Interfaces\StmtInterface;
 use SQLite3;
-use SQLite3Result;
 
 class SQLiteConnect implements ConnectInterface
 {
-
-    public string|int $insert_id;
-    public string $error;
+    public string $error = "";
 
     private SQLiteResult $query;
     private SQLite3 $connection;
 
+    /**
+     * @throws ConnectException
+     */
     public function __construct(string $database)
     {
         try {
             $this->connection = new SQLite3($database);
 
         } catch (Exception $e) {
-            throw new ConnectException('Failed to connect to SQLite: ' . $e->getMessage(), 1);
+            throw new ConnectException('Failed to connect to SQLite: ' . $e->getMessage(), $e->getCode(), $e);
         }
-        return $this->connection;
     }
 
     /**
@@ -42,17 +42,29 @@ class SQLiteConnect implements ConnectInterface
     /**
      * Performs a query on the database
      * @param string $query
+     * @param int $result_mode
      * @return object|false
      */
-    public function query(string $query): SQLiteResult|false
+    public function query(string $query, int $result_mode = 0): SQLiteResult|false
     {
         $result = new SQLiteResult($this->connection);
-        if($this->query = $result->query($query)) {
+        if ($this->query = $result->query($query)) {
             return $this->query;
         }
         $this->error = $this->connection->lastErrorMsg();
+        return false;
+    }
 
-        //$this->query = parent::query($query);
+    /**
+     * Make a prepare statement
+     * @param string $query
+     * @return StmtInterface|false
+     */
+    public function prepare(string $query): StmtInterface|false
+    {
+        if ($stmt = $this->connection->prepare($query)) {
+            return new SQLiteStmt($this->connection, $stmt);
+        }
         return false;
     }
 
@@ -60,7 +72,7 @@ class SQLiteConnect implements ConnectInterface
      * Begin transaction
      * @return bool
      */
-    function begin_transaction(): bool
+    public function begin_transaction(): bool
     {
         return (bool)$this->query("BEGIN TRANSACTION");
     }
@@ -69,7 +81,7 @@ class SQLiteConnect implements ConnectInterface
      * Commit transaction
      * @return bool
      */
-    function commit(): bool
+    public function commit(): bool
     {
         return (bool)$this->query("COMMIT");
     }
@@ -78,7 +90,7 @@ class SQLiteConnect implements ConnectInterface
      * Rollback transaction
      * @return bool
      */
-    function rollback(): bool
+    public function rollback(): bool
     {
         return (bool)$this->query("ROLLBACK");
     }
@@ -88,9 +100,28 @@ class SQLiteConnect implements ConnectInterface
      * @param string|null $column Is only used with PostgreSQL!
      * @return int
      */
-    function insert_id(?string $column = null): int
+    public function insert_id(?string $column = null): int
     {
         return $this->connection->lastInsertRowID();
+    }
+
+    /**
+     * Close connection
+     * @return bool
+     */
+    public function close(): true
+    {
+        return true;
+    }
+
+    /**
+     * Prep value / SQL escape string
+     * @param string $value
+     * @return string
+     */
+    public function prep(string $value): string
+    {
+        return SQLite3::escapeString($value);
     }
 
 }

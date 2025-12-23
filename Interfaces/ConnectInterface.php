@@ -4,7 +4,6 @@ namespace MaplePHP\Query\Interfaces;
 
 interface ConnectInterface
 {
-
     /**
      * Access the database main class
      * @param string $method
@@ -16,29 +15,30 @@ interface ConnectInterface
     /**
      * Performs a query on the database
      * @param string $query
-     * @return object|false
+     * @param int $result_mode If database
+     * @return mixed
      */
-    public function query(string $query): object|bool;
+    public function query(string $query, int $result_mode = 0): mixed;
 
 
     /**
      * Begin transaction
      * @return bool
      */
-    function begin_transaction(): bool;
+    public function begin_transaction(): bool;
 
 
     /**
      * Commit transaction
      * @return bool
      */
-    function commit(): bool;
+    public function commit(): bool;
 
     /**
      * Rollback transaction
      * @return bool
      */
-    function rollback(): bool;
+    public function rollback(): bool;
 
 
     /**
@@ -46,5 +46,18 @@ interface ConnectInterface
      * @param string|null $column Is only used with PostgreSQL!
      * @return int
      */
-    function insert_id(?string $column = null): int;
+    public function insert_id(?string $column = null): int;
+
+    /**
+     * Close connection
+     * @return bool
+     */
+    public function close(): true;
+
+    /**
+     * Prep value / SQL escape string
+     * @param string $value
+     * @return string
+     */
+    public function prep(string $value): string;
 }

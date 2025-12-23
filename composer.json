@@ -22,17 +22,16 @@
     }
   ],
   "require": {
-    "php": ">=8.0",
-    "maplephp/dto": "^1.0"
+    "php": ">=8.2",
+    "maplephp/dto": "^3.1"
   },
   "require-dev": {
-    "maplephp/unitary": "^1.0"
+    "maplephp/unitary": "^2.0"
   },
   "autoload": {
     "psr-4": {
       "MaplePHP\\Query\\": ""
     }
   },
-  "minimum-stability": "dev",
-  "version": "v2.0.2"
+  "minimum-stability": "dev"
 }

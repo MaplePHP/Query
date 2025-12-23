@@ -67,13 +67,14 @@ echo "</pre>";
 
 namespace MaplePHP\Query;
 
+use MaplePHP\Query\Exceptions\ConnectException;
 use MaplePHP\Query\Exceptions\QueryCreateException;
 
 class Create
 {
     private $sql;
     private $add;
-    private $addArr = array();
+    private $addArr = [];
     private $prefix;
     private $type;
     private $args;
@@ -87,15 +88,15 @@ class Create
     private $tbKeys;
     private $tbKeysType;
     //private $columnData;
-    private $keys = array();
-    private $ai = array();
-    private $fk = array();
-    private $fkList = array();
-    private $colData = array();
-    private $rename = array();
-    private $hasRename = array();
-    private $renameTable = array();
-    private $primaryKeys = array();
+    private $keys = [];
+    private $ai = [];
+    private $fk = [];
+    private $fkList = [];
+    private $colData = [];
+    private $rename = [];
+    private $hasRename = [];
+    private $renameTable = [];
+    private $primaryKeys = [];
     private $dropPrimaryKeys = false;
 
     private $build;
@@ -127,7 +128,7 @@ class Create
 
     public function __construct(string $table, ?string $prefix = null)
     {
-        if (!is_null($prefix)) {
+        if ($prefix !== null) {
             $this->prefix = Connect::getInstance()->prep($prefix);
         }
         $this->charset = "utf8";
@@ -212,7 +213,7 @@ class Create
      */
     public function rename(array $arr): self
     {
-        if (!is_null($this->sql)) {
+        if ($this->sql !== null) {
             throw new QueryCreateException("The rename method has to be the FIRST method to be called!", 1);
         }
         array_unshift($arr, $this->table);
@@ -248,7 +249,7 @@ class Create
     {
         if (isset($this->args['generated'])) {
             $value = explode(",", $this->args['generated']['columns']);
-            $colArr = array();
+            $colArr = [];
             if (isset($this->args['generated']['json_columns'])) {
                 foreach ($value as $col) {
                     preg_match('#\{{(.*?)\}}#', $col, $match);
@@ -292,8 +293,8 @@ class Create
      */
     private function adding()
     {
-        $arr = array();
-        $methodArr = array("type", "generated", "attributes", "collation", "null", "default");
+        $arr = [];
+        $methodArr = ["type", "generated", "attributes", "collation", "null", "default"];
         foreach ($methodArr as $method) {
             if ($val = $this->{$method}()) {
                 $arr[] = $val;
@@ -428,9 +429,9 @@ class Create
                             unset($this->ai[$col]);
                         }
                     } else {
-                        if (is_null($this->hasRename())) {
+                        if ($this->hasRename() === null) {
                             $this->add[$col] .= "ADD COLUMN `{$col}` {$attr}";
-                            if (!is_null($this->prev)) {
+                            if ($this->prev !== null) {
                                 $this->add[$col] .= " AFTER `" . $this->after() . "`";
                             }
                         }
@@ -481,7 +482,7 @@ class Create
             $this->add = array_filter($this->add);
         }
 
-        if (is_null($this->build)) {
+        if ($this->build === null) {
             // Might add to primary
             $keyStr = $this->buildKeys();
 
@@ -536,17 +537,18 @@ class Create
     /**
      * Execute
      * @return array errors.
+     * @throws ConnectException
      */
     public function execute()
     {
         $sql = $this->build();
-        $error = Connect::getInstance()->multiQuery($sql, $mysqli);
+        $error = Connect::getInstance()->getHandler()->multiQuery($sql, $mysqli);
         return $error;
     }
 
     public function mysqlCleanArr(array $arr)
     {
-        $new = array();
+        $new = [];
         foreach ($arr as $a) {
             $new[] = Connect::getInstance()->prep($a);
         }
@@ -559,8 +561,8 @@ class Create
      */
     private function tbKeys(): array
     {
-        if (is_null($this->tbKeys)) {
-            $this->tbKeysType = $this->tbKeys = array();
+        if ($this->tbKeys === null) {
+            $this->tbKeysType = $this->tbKeys = [];
             if ($this->tableExists($this->table)) {
                 $result = Connect::getInstance()->query("SHOW INDEXES FROM {$this->table}");
                 if (is_object($result) && $result->num_rows > 0) {
@@ -581,7 +583,7 @@ class Create
 
     public function tbKeysType()
     {
-        if (is_null($this->tbKeysType)) {
+        if ($this->tbKeysType === null) {
             $this->tbKeys();
         }
         return $this->tbKeysType;
@@ -593,7 +595,7 @@ class Create
      */
     public function dropColumn(): ?string
     {
-        return (!is_null($this->args['drop']) && $this->args['drop'] === true) ? "DROP COLUMN" : null;
+        return ($this->args['drop'] !== null && $this->args['drop'] === true) ? "DROP COLUMN" : null;
     }
 
     /**
@@ -602,7 +604,7 @@ class Create
      */
     public function after()
     {
-        return (!is_null($this->args['after'])) ? $this->args['after'] : $this->prev;
+        return ($this->args['after'] !== null) ? $this->args['after'] : $this->prev;
     }
 
     /**
@@ -622,7 +624,7 @@ class Create
 
     public function hasRename()
     {
-        return (!is_null($this->args['rename'])) ? $this->args['rename'] : null;
+        return ($this->args['rename'] !== null) ? $this->args['rename'] : null;
     }
 
     /**
@@ -631,7 +633,7 @@ class Create
      */
     public function ai(): ?string
     {
-        $ai = (!is_null($this->args['ai']) && $this->args['ai'] !== false) ? "AUTO_INCREMENT" : null;
+        $ai = ($this->args['ai'] !== null && $this->args['ai'] !== false) ? "AUTO_INCREMENT" : null;
         if ($ai) {
             $i = (int)$this->args['ai'];
             if ($i > 1) {
@@ -654,7 +656,7 @@ class Create
      */
     public function type()
     {
-        return strtoupper($this->args['type']) . (!is_null($this->args['length']) ? "({$this->args['length']})" : null);
+        return strtoupper($this->args['type']) . ($this->args['length'] !== null ? "({$this->args['length']})" : null);
     }
 
     /**
@@ -687,7 +689,7 @@ class Create
      */
     public function default(): ?string
     {
-        return (!is_null($this->args['default']) && $this->args['default'] !== false) ? "DEFAULT '" .
+        return ($this->args['default'] !== null && $this->args['default'] !== false) ? "DEFAULT '" .
             Connect::getInstance()->prep($this->args['default']) . "'" : null;
     }
 
@@ -697,7 +699,7 @@ class Create
      */
     public function attributes(): ?string
     {
-        if (!is_null($this->args['attr'])) {
+        if ($this->args['attr'] !== null) {
             $this->args['attr'] = strtoupper($this->args['attr']);
             if (!in_array($this->args['attr'], $this::ATTRIBUTES)) {
                 throw new QueryCreateException("The attribute \"{$this->args['attr']}\" does not exist", 1);
@@ -714,7 +716,7 @@ class Create
      */
     public function index(): ?string
     {
-        if (!is_null($this->args['index'])) {
+        if ($this->args['index'] !== null) {
             if ($this->args['index'] !== 0) {
                 $this->args['index'] = strtoupper($this->args['index']);
                 $this->args['type'] = strtoupper($this->args['type']);
@@ -758,11 +760,11 @@ class Create
                     $fkKey = ($fkRow->CONSTRAINT_NAME ?? null);
 
                     if (isset($arr['drop']) && $arr['drop'] === true) {
-                        if (!is_null($fkKey)) {
+                        if ($fkKey !== null) {
                             $sql .= "ALTER TABLE `{$this->table}` DROP FOREIGN KEY `{$fkKey}`;";
                         }
                     } else {
-                        if (!is_null($fkKey)) {
+                        if ($fkKey !== null) {
                             $sql .= "ALTER TABLE `{$this->table}` DROP FOREIGN KEY `{$fkKey}`;\n\n";
                             unset($this->fkList[$fkKey]);
                         }
@@ -816,7 +818,7 @@ class Create
         $prepareDrop = $this->tbKeysType();
 
         if (count($this->keys) > 0) {
-            $sqlKeyArr = array();
+            $sqlKeyArr = [];
             foreach ($this->keys as $col => $key) {
                 $col = Connect::getInstance()->prep($col);
                 $key = strtoupper(Connect::getInstance()->prep($key));
@@ -917,7 +919,7 @@ class Create
             "INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA = '{$dbName}' AND " .
             "TABLE_NAME = '{$table}' AND COLUMN_NAME = '{$col}'");
 
-        $arr = array();
+        $arr = [];
         if (is_object($result) && $result->num_rows > 0) {
             while ($row = $result->fetch_object()) {
                 $arr[$row->CONSTRAINT_NAME] = $row;
@@ -928,9 +930,9 @@ class Create
 
     public function tableExists(string $table = null)
     {
-        if (is_null($this->tableExists)) {
+        if ($this->tableExists === null) {
             $this->tableExists = false;
-            if (is_null($table)) {
+            if ($table === null) {
                 $table = $this->table;
             }
             $table = Connect::getInstance()->prep($table);

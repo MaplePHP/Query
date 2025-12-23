@@ -4,14 +4,13 @@ namespace MaplePHP\Query\Interfaces;
 
 interface ResultInterface
 {
-
     /**
      * This should pass on query to a query object
      * that can be used to get more data such as num rows
      * @param $sql
      * @return self|bool
      */
-    function query($sql): self|bool;
+    public function query($sql): self|bool;
 
     /**
      * Fetch the next row of a result set as an object

@@ -1,14 +1,15 @@
 <?php
+
 declare(strict_types=1);
 
 namespace MaplePHP\Query\Handlers;
 
 use InvalidArgumentException;
 use MaplePHP\Query\Exceptions\ConnectException;
+use MaplePHP\Query\Interfaces\ConnectInterface;
 use MaplePHP\Query\Interfaces\HandlerInterface;
 use MaplePHP\Query\Handlers\PostgreSQL\PostgreSQLConnect;
 use MaplePHP\Query\Handlers\PostgreSQL\PostgreSQLResult;
-use PgSql\Connection;
 
 class PostgreSQLHandler implements HandlerInterface
 {
@@ -20,7 +21,7 @@ class PostgreSQLHandler implements HandlerInterface
     private string $charset = "utf8";
     private int $port;
     private string $prefix = "";
-    private PostgreSQLConnect $connection;
+    private ?PostgreSQLConnect $connection = null;
 
     public function __construct(string $server, string $user, string $pass, string $dbname, int $port = 5432)
     {
@@ -67,19 +68,18 @@ class PostgreSQLHandler implements HandlerInterface
      */
     public function hasConnection(): bool
     {
-        return ($this->connection instanceof Connection);
+        return ($this->connection instanceof PostgreSQLConnect);
     }
 
     /**
      * Connect to database
-     * @return PostgreSQLConnect
+     * @return ConnectInterface
      * @throws ConnectException
      */
-    public function execute(): PostgreSQLConnect
+    public function execute(): ConnectInterface
     {
-
         $this->connection = new PostgreSQLConnect($this->server, $this->user, $this->pass, $this->dbname, $this->port);
-        if (!is_null($this->connection->error)) {
+        if (!empty($this->connection->error)) {
             throw new ConnectException('Failed to connect to PostgreSQL: ' . $this->connection->error, 1);
         }
         $encoded = pg_set_client_encoding($this->connection->getConnection(), $this->charset);
@@ -135,7 +135,7 @@ class PostgreSQLHandler implements HandlerInterface
      */
     public function close(): void
     {
-        if(!pg_close($this->connection->getConnection())) {
+        if (!pg_close($this->connection->getConnection())) {
             throw new ConnectException("Failed to close pgsql connection:" . pg_last_error($this->connection->getConnection()), 1);
         }
     }
@@ -152,25 +152,15 @@ class PostgreSQLHandler implements HandlerInterface
     }
 
     /**
-     * Start Transaction
-     * @return PostgreSQLConnect
-     */
-    public function transaction(): PostgreSQLConnect
-    {
-        $this->connection->begin_transaction();
-        return $this->connection;
-    }
-
-    /**
      * Execute multiple queries at once (e.g. from a sql file)
      * @param  string $sql
      * @param  object|null &$db
      * @return array
      */
-    public function multiQuery(string $sql, object &$db = null): array
+    public function multiQuery(string $sql, ?object &$db = null): array
     {
         $count = 0;
-        $err = array();
+        $err = [];
         $db = $this->connection->getConnection();
         // Split the SQL string into individual queries
         $queries = explode(';', $sql);

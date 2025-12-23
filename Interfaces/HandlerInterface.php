@@ -36,10 +36,10 @@ interface HandlerInterface
 
     /**
      * Connect to database
-     * @return mixed
+     * @return ConnectInterface
      * @throws ConnectException
      */
-    public function execute(): mixed;
+    public function execute(): ConnectInterface;
 
 
     /**
@@ -86,6 +86,6 @@ interface HandlerInterface
      * @param  object|null &$db
      * @return array
      */
-    public function multiQuery(string $sql, object &$db = null): array;
+    public function multiQuery(string $sql, ?object &$db = null): array;
 
 }
